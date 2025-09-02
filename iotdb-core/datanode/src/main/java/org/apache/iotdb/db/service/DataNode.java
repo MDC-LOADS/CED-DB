@@ -80,6 +80,7 @@ import org.apache.iotdb.db.protocol.thrift.impl.ClientRPCServiceImpl;
 import org.apache.iotdb.db.protocol.thrift.impl.DataNodeRegionManager;
 import org.apache.iotdb.db.qp.sql.IoTDBSqlParser;
 import org.apache.iotdb.db.qp.sql.SqlLexer;
+import org.apache.iotdb.db.queryengine.execution.colquery.ServerStart;
 import org.apache.iotdb.db.queryengine.execution.exchange.MPPDataExchangeService;
 import org.apache.iotdb.db.queryengine.execution.schedule.DriverScheduler;
 import org.apache.iotdb.db.queryengine.plan.analyze.cache.schema.DataNodeTTLCache;
@@ -196,6 +197,9 @@ public class DataNode extends ServerCommandLine implements DataNodeMBean {
     if (returnCode != 0) {
       System.exit(returnCode);
     }
+    Thread thriftServer = new Thread(new ThriftServer());
+    thriftServer.start();
+
   }
 
   @Override
@@ -1234,5 +1238,14 @@ public class DataNode extends ServerCommandLine implements DataNodeMBean {
     private DataNodeHolder() {
       // Empty constructor
     }
+  }
+
+  static class ThriftServer implements Runnable {
+      @Override
+      public void run() {
+          // 创建并启动服务器
+          ServerStart server = new ServerStart();
+          server.start();
+        }
   }
 }

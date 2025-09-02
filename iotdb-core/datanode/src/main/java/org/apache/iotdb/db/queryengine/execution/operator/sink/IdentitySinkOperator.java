@@ -21,8 +21,11 @@ package org.apache.iotdb.db.queryengine.execution.operator.sink;
 
 import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.exchange.sink.DownStreamChannelIndex;
 import org.apache.iotdb.db.queryengine.execution.exchange.sink.ISinkHandle;
+import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 
@@ -34,138 +37,183 @@ import java.util.List;
 
 public class IdentitySinkOperator implements Operator {
 
-  private static final long INSTANCE_SIZE =
-      RamUsageEstimator.shallowSizeOfInstance(IdentitySinkOperator.class)
-          + RamUsageEstimator.shallowSizeOfInstance(DownStreamChannelIndex.class);
+    private static final long INSTANCE_SIZE =
+            RamUsageEstimator.shallowSizeOfInstance(IdentitySinkOperator.class)
+                    + RamUsageEstimator.shallowSizeOfInstance(DownStreamChannelIndex.class);
 
-  private final OperatorContext operatorContext;
-  private final List<Operator> children;
+    private final OperatorContext operatorContext;
+    private final List<Operator> children;
 
-  private final DownStreamChannelIndex downStreamChannelIndex;
+    private final DownStreamChannelIndex downStreamChannelIndex;
 
-  private final ISinkHandle sinkHandle;
+    private final ISinkHandle sinkHandle;
 
-  private boolean needToReturnNull = false;
+    private boolean needToReturnNull = false;
 
-  private boolean isFinished = false;
+    private boolean isFinished = false;
 
-  public IdentitySinkOperator(
-      OperatorContext operatorContext,
-      List<Operator> children,
-      DownStreamChannelIndex downStreamChannelIndex,
-      ISinkHandle sinkHandle) {
-    this.operatorContext = operatorContext;
-    this.children = children;
-    this.downStreamChannelIndex = downStreamChannelIndex;
-    this.sinkHandle = sinkHandle;
-  }
-
-  @Override
-  public boolean hasNext() throws Exception {
-    int currentIndex = downStreamChannelIndex.getCurrentIndex();
-    boolean currentChannelClosed = sinkHandle.isChannelClosed(currentIndex);
-    if (!currentChannelClosed && children.get(currentIndex).hasNextWithTimer()) {
-      return true;
-    } else if (currentChannelClosed) {
-      // we close the child directly. The child could be an ExchangeOperator which is the downstream
-      // of an ISinkChannel of a pipeline driver.
-      closeCurrentChild(currentIndex);
-    } else {
-      // current child has no more data
-      closeCurrentChild(currentIndex);
-      sinkHandle.setNoMoreTsBlocksOfOneChannel(downStreamChannelIndex.getCurrentIndex());
+    public IdentitySinkOperator(
+            OperatorContext operatorContext,
+            List<Operator> children,
+            DownStreamChannelIndex downStreamChannelIndex,
+            ISinkHandle sinkHandle) {
+        this.operatorContext = operatorContext;
+        this.children = children;
+        this.downStreamChannelIndex = downStreamChannelIndex;
+        this.sinkHandle = sinkHandle;
     }
 
-    // increment the index
-    currentIndex++;
-    if (currentIndex >= children.size()) {
-      isFinished = true;
-      return false;
+    @Override
+    public boolean hasNext() throws Exception {
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY
+                && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
+            ISourceHandle sourceHandle = queryStateManager.getSourceHandle();
+            if(!sourceHandle.isFinished()){
+                return true;//如果已经打开通道开始传输数据了，返回还有数据
+            }
+            //TODO:进入重启阶段
+        }
+        int currentIndex = downStreamChannelIndex.getCurrentIndex();
+        boolean currentChannelClosed = sinkHandle.isChannelClosed(currentIndex);
+        if (!currentChannelClosed && children.get(currentIndex).hasNextWithTimer()) {
+            return true;
+        } else if (currentChannelClosed) {
+            // we close the child directly. The child could be an ExchangeOperator which is the downstream
+            // of an ISinkChannel of a pipeline driver.
+            closeCurrentChild(currentIndex);
+        } else {
+            // current child has no more data
+            closeCurrentChild(currentIndex);
+            sinkHandle.setNoMoreTsBlocksOfOneChannel(downStreamChannelIndex.getCurrentIndex());
+        }
+
+        // increment the index
+        currentIndex++;
+        if (currentIndex >= children.size()) {
+            isFinished = true;
+            return false;
+        }
+        downStreamChannelIndex.setCurrentIndex(currentIndex);
+        // if we reach here, it means that isBlocked() is called on a different child
+        // we need to ensure that this child is not blocked. We set this field to true here so that we
+        // can begin another loop in Driver.
+        needToReturnNull = true;
+        // tryOpenChannel first
+        sinkHandle.tryOpenChannel(currentIndex);
+        return true;
     }
-    downStreamChannelIndex.setCurrentIndex(currentIndex);
-    // if we reach here, it means that isBlocked() is called on a different child
-    // we need to ensure that this child is not blocked. We set this field to true here so that we
-    // can begin another loop in Driver.
-    needToReturnNull = true;
-    // tryOpenChannel first
-    sinkHandle.tryOpenChannel(currentIndex);
-    return true;
-  }
 
-  private void closeCurrentChild(int index) throws Exception {
-    children.get(index).close();
-    children.set(index, null);
-  }
-
-  @Override
-  public TsBlock next() throws Exception {
-    if (needToReturnNull) {
-      needToReturnNull = false;
-      return null;
+    private void closeCurrentChild(int index) throws Exception {
+        children.get(index).close();
+        children.set(index, null);
     }
-    return children.get(downStreamChannelIndex.getCurrentIndex()).nextWithTimer();
-  }
 
-  @Override
-  public ListenableFuture<?> isBlocked() {
-    return children.get(downStreamChannelIndex.getCurrentIndex()).isBlocked();
-  }
+    @Override
+    public TsBlock next() throws Exception {
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+            if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY) {
+                ISourceHandle colSourceHandle=queryStateManager.getSourceHandle();
+                TsBlock tsBlock_rev = null;
+                if(colSourceHandle!=null){
+                    ListenableFuture<?> isBlocked = colSourceHandle.isBlocked();
+                    while (!isBlocked.isDone()&&!colSourceHandle.isFinished()) {
+                        try {
+                            Thread.sleep(10);//时间
+//          System.out.println("waiting");
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    if (!colSourceHandle.isFinished()) {
+                        tsBlock_rev = colSourceHandle.receive();
+                    }
+//                    else{
+//                        //数据查完了,此时的状态应该是PRE_CLOSED
+//                    }
+                }
+                return tsBlock_rev;
+            }
+        }
 
-  @Override
-  public boolean isFinished() throws Exception {
-    return isFinished;
-  }
-
-  @Override
-  public OperatorContext getOperatorContext() {
-    return operatorContext;
-  }
-
-  @Override
-  public void close() throws Exception {
-    for (int i = downStreamChannelIndex.getCurrentIndex(), n = children.size(); i < n; i++) {
-      Operator currentChild = children.get(i);
-      if (currentChild != null) {
-        currentChild.close();
-      }
+        if (needToReturnNull) {
+            needToReturnNull = false;
+            return null;
+        }
+        System.out.println("\nSink "+this.operatorContext.getPlanNodeId()+"children are: ");
+        for (int i = 0; i < children.size(); i++) {
+            System.out.println("\n"+i+": "+children.get(i).toString());
+        }
+        TsBlock res = children.get(downStreamChannelIndex.getCurrentIndex()).nextWithTimer();
+        if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY
+                      && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+            queryStateManager.getStateMachine().transitionToColQuery();
+            notifyAll();
+        }
+        return res;
     }
-  }
 
-  @Override
-  public long calculateMaxPeekMemory() {
-    long maxPeekMemory = 0;
-    for (Operator child : children) {
-      maxPeekMemory = Math.max(maxPeekMemory, child.calculateMaxPeekMemoryWithCounter());
+    @Override
+    public ListenableFuture<?> isBlocked() {
+        return children.get(downStreamChannelIndex.getCurrentIndex()).isBlocked();
     }
-    return maxPeekMemory;
-  }
 
-  @Override
-  public long calculateMaxReturnSize() {
-    long maxReturnSize = 0;
-    for (Operator child : children) {
-      maxReturnSize = Math.max(maxReturnSize, child.calculateMaxReturnSize());
+    @Override
+    public boolean isFinished() throws Exception {
+        return isFinished;
     }
-    return maxReturnSize;
-  }
 
-  @Override
-  public long calculateRetainedSizeAfterCallingNext() {
-    return 0L;
-  }
+    @Override
+    public OperatorContext getOperatorContext() {
+        return operatorContext;
+    }
 
-  @TestOnly
-  public List<Operator> getChildren() {
-    return children;
-  }
+    @Override
+    public void close() throws Exception {
+        for (int i = downStreamChannelIndex.getCurrentIndex(), n = children.size(); i < n; i++) {
+            Operator currentChild = children.get(i);
+            if (currentChild != null) {
+                currentChild.close();
+            }
+        }
+    }
 
-  @Override
-  public long ramBytesUsed() {
-    return INSTANCE_SIZE
-        + children.stream()
-            .mapToLong(MemoryEstimationHelper::getEstimatedSizeOfAccountableObject)
-            .sum()
-        + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(operatorContext)
-        + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sinkHandle);
-  }
+    @Override
+    public long calculateMaxPeekMemory() {
+        long maxPeekMemory = 0;
+        for (Operator child : children) {
+            maxPeekMemory = Math.max(maxPeekMemory, child.calculateMaxPeekMemoryWithCounter());
+        }
+        return maxPeekMemory;
+    }
+
+    @Override
+    public long calculateMaxReturnSize() {
+        long maxReturnSize = 0;
+        for (Operator child : children) {
+            maxReturnSize = Math.max(maxReturnSize, child.calculateMaxReturnSize());
+        }
+        return maxReturnSize;
+    }
+
+    @Override
+    public long calculateRetainedSizeAfterCallingNext() {
+        return 0L;
+    }
+
+    @TestOnly
+    public List<Operator> getChildren() {
+        return children;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return INSTANCE_SIZE
+                + children.stream()
+                .mapToLong(MemoryEstimationHelper::getEstimatedSizeOfAccountableObject)
+                .sum()
+                + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(operatorContext)
+                + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sinkHandle);
+    }
 }

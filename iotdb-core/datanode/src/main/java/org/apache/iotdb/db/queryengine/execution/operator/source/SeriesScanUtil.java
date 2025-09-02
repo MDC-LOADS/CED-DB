@@ -123,6 +123,8 @@ public class SeriesScanUtil implements Accountable {
           + RamUsageEstimator.shallowSizeOfInstance(PaginationController.class)
           + RamUsageEstimator.shallowSizeOfInstance(SeriesScanOptions.class);
 
+  protected Ordering scanOrder;
+
   public SeriesScanUtil(
       PartialPath seriesPath,
       Ordering scanOrder,
@@ -136,7 +138,7 @@ public class SeriesScanUtil implements Accountable {
     this.paginationController = scanOptions.getPaginationController();
 
     this.context = context;
-
+    this.scanOrder = scanOrder;
     if (scanOrder.isAscending()) {
       this.orderUtils = new AscTimeOrderUtils();
       this.mergeReader = getPriorityMergeReader();

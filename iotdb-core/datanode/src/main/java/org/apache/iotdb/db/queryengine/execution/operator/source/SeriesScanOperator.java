@@ -21,6 +21,7 @@ package org.apache.iotdb.db.queryengine.execution.operator.source;
 
 import org.apache.iotdb.commons.path.PartialPath;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNodeId;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.parameter.SeriesScanOptions;
@@ -35,61 +36,65 @@ import org.apache.tsfile.read.common.block.column.TimeColumnBuilder;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
 public class SeriesScanOperator extends AbstractSeriesScanOperator {
-  private static final long INSTANCE_SIZE =
-      RamUsageEstimator.shallowSizeOfInstance(SeriesScanOperator.class);
+    private static final long INSTANCE_SIZE =
+            RamUsageEstimator.shallowSizeOfInstance(SeriesScanOperator.class);
 
-  public SeriesScanOperator(
-      OperatorContext context,
-      PlanNodeId sourceId,
-      PartialPath seriesPath,
-      Ordering scanOrder,
-      SeriesScanOptions seriesScanOptions) {
-    this.sourceId = sourceId;
-    this.operatorContext = context;
-    this.seriesScanUtil =
-        new SeriesScanUtil(seriesPath, scanOrder, seriesScanOptions, context.getInstanceContext());
-    this.maxReturnSize =
-        Math.min(maxReturnSize, TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
-  }
+    public SeriesScanOperator(
+            OperatorContext context,
+            PlanNodeId sourceId,
+            PartialPath seriesPath,
+            Ordering scanOrder,
+            SeriesScanOptions seriesScanOptions) {
+        this.sourceId = sourceId;
+        this.operatorContext = context;
+        this.seriesScanUtil =
+                new SeriesScanUtil(seriesPath, scanOrder, seriesScanOptions, context.getInstanceContext());
+        this.maxReturnSize =
+                Math.min(maxReturnSize, TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
+        //添加当前scan路径和sourceId
+        QueryStateManager stateManager = QueryStateManager.getInstance();
+        stateManager.setSeriesPathAndPlanNodeId(this.sourceId.getId(),this.seriesScanUtil.seriesPath.toString());
 
-  @Override
-  public long calculateMaxPeekMemory() {
-    return Math.max(maxReturnSize, TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
-  }
-
-  @Override
-  protected void buildResult(TsBlock tsBlock) {
-    int size = tsBlock.getPositionCount();
-    TimeColumnBuilder timeColumnBuilder = resultTsBlockBuilder.getTimeColumnBuilder();
-    TimeColumn timeColumn = tsBlock.getTimeColumn();
-    ColumnBuilder columnBuilder = resultTsBlockBuilder.getColumnBuilder(0);
-    Column column = tsBlock.getColumn(0);
-
-    if (column.mayHaveNull()) {
-      for (int i = 0; i < size; i++) {
-        timeColumnBuilder.writeLong(timeColumn.getLong(i));
-        if (column.isNull(i)) {
-          columnBuilder.appendNull();
-        } else {
-          columnBuilder.write(column, i);
-        }
-        resultTsBlockBuilder.declarePosition();
-      }
-    } else {
-      for (int i = 0; i < size; i++) {
-        timeColumnBuilder.writeLong(timeColumn.getLong(i));
-        columnBuilder.write(column, i);
-        resultTsBlockBuilder.declarePosition();
-      }
     }
-  }
 
-  @Override
-  public long ramBytesUsed() {
-    return INSTANCE_SIZE
-        + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(seriesScanUtil)
-        + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(operatorContext)
-        + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceId)
-        + (resultTsBlockBuilder == null ? 0 : resultTsBlockBuilder.getRetainedSizeInBytes());
-  }
+    @Override
+    public long calculateMaxPeekMemory() {
+        return Math.max(maxReturnSize, TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
+    }
+
+    @Override
+    protected void buildResult(TsBlock tsBlock) {
+        int size = tsBlock.getPositionCount();
+        TimeColumnBuilder timeColumnBuilder = resultTsBlockBuilder.getTimeColumnBuilder();
+        TimeColumn timeColumn = tsBlock.getTimeColumn();
+        ColumnBuilder columnBuilder = resultTsBlockBuilder.getColumnBuilder(0);
+        Column column = tsBlock.getColumn(0);
+
+        if (column.mayHaveNull()) {
+            for (int i = 0; i < size; i++) {
+                timeColumnBuilder.writeLong(timeColumn.getLong(i));
+                if (column.isNull(i)) {
+                    columnBuilder.appendNull();
+                } else {
+                    columnBuilder.write(column, i);
+                }
+                resultTsBlockBuilder.declarePosition();
+            }
+        } else {
+            for (int i = 0; i < size; i++) {
+                timeColumnBuilder.writeLong(timeColumn.getLong(i));
+                columnBuilder.write(column, i);
+                resultTsBlockBuilder.declarePosition();
+            }
+        }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return INSTANCE_SIZE
+                + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(seriesScanUtil)
+                + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(operatorContext)
+                + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceId)
+                + (resultTsBlockBuilder == null ? 0 : resultTsBlockBuilder.getRetainedSizeInBytes());
+    }
 }

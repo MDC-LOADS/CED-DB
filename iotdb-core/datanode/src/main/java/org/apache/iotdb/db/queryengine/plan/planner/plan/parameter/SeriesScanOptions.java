@@ -38,8 +38,8 @@ public class SeriesScanOptions {
 
   private Filter pushDownFilter;
 
-  private final long pushDownLimit;
-  private final long pushDownOffset;
+  public final long pushDownLimit;
+  public final long pushDownOffset;
 
   private final Set<String> allSensors;
 

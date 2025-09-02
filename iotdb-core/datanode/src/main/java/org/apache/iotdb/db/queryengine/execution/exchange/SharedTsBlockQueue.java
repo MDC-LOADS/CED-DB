@@ -354,4 +354,72 @@ public class SharedTsBlockQueue {
       bufferRetainedSizeInBytes = 0;
     }
   }
+
+
+    /**
+     * Fast clear all TsBlocks from the queue without closing the queue.
+     * This method is more efficient than calling remove() repeatedly.
+     * The queue remains open and can continue to accept new TsBlocks.
+     *
+     * @return number of TsBlocks that were cleared
+     */
+    public int fastClear() {
+        if (closed) {
+            return 0;
+        }
+
+        int clearedCount = queue.size();
+
+        // Fast bulk memory release - release all at once instead of per TsBlock
+        if (bufferRetainedSizeInBytes > 0L) {
+            localMemoryManager
+                    .getQueryPool()
+                    .free(
+                            localFragmentInstanceId.getQueryId(),
+                            fullFragmentInstanceId,
+                            localPlanNodeId,
+                            bufferRetainedSizeInBytes);
+            bufferRetainedSizeInBytes = 0;
+        }
+
+        // Fast queue clear - O(1) operation instead of O(n) remove loop
+        queue.clear();
+
+        // Reset blocked state to allow new data if queue is now empty and no more blocks flag is false
+        if (blocked.isDone() && !noMoreTsBlocks) {
+            blocked = SettableFuture.create();
+        }
+
+        LOGGER.debug("FastClear completed: {} TsBlocks cleared from queue {}",
+                clearedCount, fullFragmentInstanceId);
+
+        return clearedCount;
+    }
+
+    /**
+     * Clear the queue and reset to initial state while keeping it open.
+     * Similar to fastClear() but also resets the noMoreTsBlocks flag.
+     *
+     * @return number of TsBlocks that were cleared
+     */
+    public int resetQueue() {
+        if (closed) {
+            return 0;
+        }
+
+        int clearedCount = fastClear();
+
+        // Reset the noMoreTsBlocks flag to allow new data
+        noMoreTsBlocks = false;
+
+        // Ensure blocked state allows new data
+        if (!blocked.isDone()) {
+            blocked.set(null);
+        }
+
+        LOGGER.debug("ResetQueue completed: {} TsBlocks cleared, queue reset to initial state",
+                clearedCount);
+
+        return clearedCount;
+    }
 }

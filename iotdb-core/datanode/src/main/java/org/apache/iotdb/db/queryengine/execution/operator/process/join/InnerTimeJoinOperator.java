@@ -20,6 +20,8 @@
 package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.ProcessOperator;
@@ -39,6 +41,7 @@ import org.apache.tsfile.utils.RamUsageEstimator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -77,6 +80,9 @@ public class InnerTimeJoinOperator implements ProcessOperator {
   /** Indicate whether we found an empty child input in one loop */
   private boolean hasEmptyChildInput = false;
 
+  private final List<String> childScanPaths;
+
+
   public InnerTimeJoinOperator(
       OperatorContext operatorContext,
       List<Operator> children,
@@ -94,6 +100,11 @@ public class InnerTimeJoinOperator implements ProcessOperator {
     this.resultBuilder = new TsBlockBuilder(dataTypes);
     this.comparator = comparator;
     this.outputColumnMap = outputColumnMap;
+    this.childScanPaths = new ArrayList<>();
+    QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+        extractSeriesPathFromChild();
+    }
   }
 
   @Override
@@ -166,6 +177,8 @@ public class InnerTimeJoinOperator implements ProcessOperator {
 
     TsBlock res = resultBuilder.build();
     resultBuilder.reset();
+    // Update scan states after processing
+    updateScanStates();
     return res;
   }
 
@@ -423,4 +436,91 @@ public class InnerTimeJoinOperator implements ProcessOperator {
     return inputTsBlocks[columnIndex] == null
         || inputTsBlocks[columnIndex].getPositionCount() == inputIndex[columnIndex];
   }
+
+    /**
+     * Update scan states in QueryStateManager singleton after each next() call.
+     *
+     * <p>For each child operator: 1. If inputTsBlocks[i] is empty, set offset to current
+     * scanTimestamp and isCouldEqual to false 2. If inputTsBlocks[i] is not empty, set offset to
+     * timestamp at inputIndex[i] and isCouldEqual to true
+     */
+  private void updateScanStates() {
+      // Check if QueryStateManager singleton is initialized
+      if (!QueryStateManager.isInitialized()) {
+          return;
+      }
+
+      QueryStateManager stateManager = QueryStateManager.getInstance();
+
+      for (int i = 0; i < inputOperatorsCount; i++) {
+            // Skip if no corresponding scan path
+          if (i >= childScanPaths.size()) {
+              continue;
+          }
+
+          String scanPath = childScanPaths.get(i);
+          if (scanPath == null || scanPath.isEmpty()) {
+              continue;
+          }
+
+          // Get or create scan states for this path
+          QueryStateManager.ScanStates scanStates = stateManager.getScanStates(scanPath);
+          if (scanStates == null) {
+              scanStates = new QueryStateManager.ScanStates();
+              stateManager.setScanStates(scanPath, scanStates);
+          }
+
+          if (inputTsBlocks[i] == null) {
+              // Case 1: inputTsBlocks[i] is empty
+              // Set offset to current scanTimestamp and isCouldEqual to false
+              stateManager.updateScanOffset(scanPath, scanStates.getScanTimestamp());
+              stateManager.updateScanCouldEqual(scanPath, false);
+          } else {
+              // Case 2: inputTsBlocks[i] is not empty
+              // Set offset to timestamp at inputIndex[i] and isCouldEqual to true
+              long currentTimestamp;
+              if (inputIndex[i] < inputTsBlocks[i].getPositionCount()) {
+                  // Current processing position
+                  currentTimestamp = inputTsBlocks[i].getTimeByIndex(inputIndex[i]);
+              } else if (inputIndex[i] > 0) {
+                  // If already processed all data, use the last processed timestamp
+                  currentTimestamp = inputTsBlocks[i].getTimeByIndex(inputIndex[i] - 1);
+              } else {
+                  // Fallback to the first timestamp if available
+                  currentTimestamp =
+                          inputTsBlocks[i].getPositionCount() > 0
+                                  ? inputTsBlocks[i].getTimeByIndex(0)
+                                  : scanStates.getScanTimestamp();
+              }
+
+              stateManager.updateScanOffset(scanPath, currentTimestamp);
+              stateManager.updateScanCouldEqual(scanPath, true);
+          }
+
+          // Update inner join status
+          stateManager.updateScanInnerJoin(scanPath, true);
+      }
+  }
+
+    /**
+     * Extract series path from child operator if it is ExchangeOperator. If sourceId is
+     * found, use its sourceId -> seriesPath; otherwise create a default path.
+     *
+     */
+  private void extractSeriesPathFromChild() {
+      QueryStateManager queryStateManager = QueryStateManager.getInstance();
+      if(!queryStateManager.getAllScanPathList().isEmpty()){
+          queryStateManager.getAllScanStates().forEach((key, value) -> {
+              if(value.isInnerJoin()){
+                  childScanPaths.add(key);
+              }
+          });
+          return ;
+      }
+      for(int i = 0; i < inputOperatorsCount; i++){
+          childScanPaths.add("child_" + i + "_" + operatorContext.getPlanNodeId());
+      }
+  }
+
+
 }

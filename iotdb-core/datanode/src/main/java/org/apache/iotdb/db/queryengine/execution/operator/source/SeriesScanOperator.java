@@ -92,4 +92,12 @@ public class SeriesScanOperator extends AbstractSeriesScanOperator {
         + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceId)
         + (resultTsBlockBuilder == null ? 0 : resultTsBlockBuilder.getRetainedSizeInBytes());
   }
+
+    public SeriesScanOptions  getSeriesScanOptions() {
+        return seriesScanUtil.scanOptions;
+    }
+
+    public SeriesScanUtil getSeriesScanUtil() {
+        return seriesScanUtil;
+    }
 }

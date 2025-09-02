@@ -32,6 +32,9 @@ import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
 import org.apache.iotdb.db.queryengine.common.header.DatasetHeader;
 import org.apache.iotdb.db.queryengine.execution.QueryState;
 import org.apache.iotdb.db.queryengine.execution.QueryStateMachine;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.colservice.C2EColService;
 import org.apache.iotdb.db.queryengine.execution.exchange.MPPDataExchangeService;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.SourceHandle;
@@ -53,10 +56,19 @@ import org.apache.iotdb.rpc.TSStatusCode;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.layered.TFramedTransport;
+import org.apache.thrift.TException;
+
+
 import org.apache.tsfile.read.common.block.TsBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Optional;
@@ -166,6 +178,18 @@ public class QueryExecution implements IQueryExecution {
     // check timeout for query first
     checkTimeOutForQuery();
     doLogicalPlan();
+    //如果状态机为START，将cloudFragmentId发送给边
+    QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    if(queryStateManager.getStateMachine().getState()==ColQueryState.START && !this.logicalPlan.getContext().getSql().contains("Schema Fetch")){
+        callAckMessage(queryStateManager.getAndAddCloudFragmentId());
+        try{//直到状态机改变才开始继续执行
+            while(queryStateManager.getStateMachine().getState()!=ColQueryState.PRE_COL_QUERY){
+                wait();
+            }
+        }catch (InterruptedException e){
+            System.out.println("\n等待失败");
+        }
+    }
     doDistributedPlan();
 
     // update timeout after finishing plan stage
@@ -669,5 +693,24 @@ public class QueryExecution implements IQueryExecution {
 
   public ScheduledExecutorService getScheduledExecutor() {
     return planner.getScheduledExecutorService();
+  }
+
+  public void callAckMessage(int cloudFragmentId){
+      TTransport transport = null;
+      try  {
+          transport =  new TFramedTransport(new TSocket("127.0.0.1", 9090));
+          TProtocol protocol = new TBinaryProtocol(transport);
+          C2EColService.Client client = new C2EColService.Client(protocol);
+          transport.open();
+          // 调用服务方法
+          client.ACKMessage(cloudFragmentId);
+//            System.out.println("ansData:"+SourceId+" sent successfully.");
+      } catch (TException x) {
+          x.printStackTrace();
+      }finally {
+          if(null!=transport){
+              transport.close();
+          }
+      }
   }
 }

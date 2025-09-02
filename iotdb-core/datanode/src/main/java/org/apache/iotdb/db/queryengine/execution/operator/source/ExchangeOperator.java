@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.queryengine.execution.operator.source;
 
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNodeId;
@@ -79,7 +80,15 @@ public class ExchangeOperator implements SourceOperator {
 
   @Override
   public TsBlock next() throws Exception {
-    return sourceHandle.receive();
+      TsBlock res = sourceHandle.receive();
+      if(QueryStateManager.isInitialized()){
+          QueryStateManager queryStateManager = QueryStateManager.getInstance();
+          if(queryStateManager.isHasSeriesPath(sourceId.getId()) && !queryStateManager.isSingleScan()) {
+              long currentEndTime = res.getEndTime();
+              queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
+          }
+      }
+    return res;
   }
 
   @Override

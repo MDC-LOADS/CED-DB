@@ -21,11 +21,15 @@ package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 
 import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ScanInfoConverter;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.AbstractConsumeAllOperator;
 import org.apache.iotdb.db.queryengine.execution.operator.process.join.merge.ColumnMerger;
 import org.apache.iotdb.db.queryengine.execution.operator.process.join.merge.TimeComparator;
+import org.apache.iotdb.db.queryengine.execution.operator.source.ExchangeOperator;
 import org.apache.iotdb.db.queryengine.plan.statement.component.Ordering;
 import org.apache.iotdb.db.utils.datastructure.TimeSelector;
 
@@ -39,6 +43,7 @@ import org.apache.tsfile.utils.RamUsageEstimator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.util.concurrent.Futures.successfulAsList;
@@ -80,6 +85,8 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
 
   private final TimeComparator comparator;
 
+  private final List<String> childScanPaths;
+
   public FullOuterTimeJoinOperator(
       OperatorContext operatorContext,
       List<Operator> children,
@@ -103,6 +110,11 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
             maxReturnSize,
             (1L + outputColumnCount)
                 * TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
+    this.childScanPaths = new ArrayList<>();
+    QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+        extractSeriesPathFromChild();
+    }
   }
 
   @Override
@@ -174,6 +186,10 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
     } while (comparator.lessThan(currentTime, currentEndTime) && !timeSelector.isEmpty());
 
     resultTsBlock = tsBlockBuilder.build();
+
+    // Update scan states after processing
+    updateScanStates();
+
     return checkTsBlockSizeAndGetResult();
   }
 
@@ -352,4 +368,92 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
         + RamUsageEstimator.sizeOf(shadowInputIndex)
         + tsBlockBuilder.getRetainedSizeInBytes();
   }
+
+    /**
+     * Update scan states in QueryStateManager singleton after each next() call.
+     *
+     * <p>具体功能如下：
+     * 1. 当子算子对应的 inputTsBlocks[] 为空时，QueryStateManager 中的 ScanStates 中的 scanOffset 设置为它的 ScanTimestamp，isCouldEqual 设置为 false；
+     * 2. 子算子对应 inputTsBlock[] 为空，retainedTsBlock 不为空，scanOffset 设置为 retainedTsBlock 中的最小时间戳；
+     * 3. 子算子对应 inputTsBlocks[] 不为空，retainedTsBlock 为空，scanOffset 设置为 inputTsBLocks[inputIndex[]]；
+     * 4. 子算子对应 inputTsBlocks[] 不为空，retainedTsBlock 也不为空，offset 设置为 retainedTsBlock 中的最小时间戳；
+     */
+    private void updateScanStates() {
+        // Check if QueryStateManager singleton is initialized
+        if (!QueryStateManager.isInitialized()) {
+            return;
+        }
+
+        QueryStateManager stateManager = QueryStateManager.getInstance();
+
+        for (int i = 0; i < inputOperatorsCount; i++) {
+            // Skip if no corresponding scan path
+            if (i >= childScanPaths.size()) {
+                continue;
+            }
+
+            String scanPath = childScanPaths.get(i);
+            if (scanPath == null || scanPath.isEmpty()) {
+                continue;
+            }
+
+            // Get or create scan states for this path
+            QueryStateManager.ScanStates scanStates = stateManager.getScanStates(scanPath);
+            if (scanStates == null) {
+                scanStates = new QueryStateManager.ScanStates();
+                stateManager.setScanStates(scanPath, scanStates);
+            }
+            if (inputTsBlocks[i] == null || inputTsBlocks[i].getPositionCount() == inputIndex[i]) {
+                //Case 2:当子算子对应的 inputTsBlocks[] 为空,retainedTsBlock不为空时
+                if(retainedTsBlock !=null && retainedTsBlock.getPositionCount() > 0){
+                    long offsetTime;
+                    offsetTime = retainedTsBlock.getTimeByIndex(0);
+                    stateManager.updateScanOffset(scanPath, offsetTime);
+                    stateManager.updateScanCouldEqual(scanPath, true);
+                }else {
+                    // Case 1: 当子算子对应的 inputTsBlocks[] 为空,retainedTsBlock为空时
+                    // scanOffset 设置为它的 ScanTimestamp，isCouldEqual 设置为 false
+                    stateManager.updateScanOffset(scanPath, scanStates.getScanTimestamp());
+                    stateManager.updateScanCouldEqual(scanPath, false);
+                }
+            } else {
+                long offsetTime;
+                // inputTsBlocks[] 不为空的情况
+                // Case 4: retainedTsBlock 也不为空，offset 设置为 retainedTsBlock 中的最小时间戳
+                if (retainedTsBlock != null && retainedTsBlock.getPositionCount() > 0) {
+                    offsetTime = retainedTsBlock.getTimeByIndex(0); // 最小时间戳（第一个）
+                }
+                // Case 3: retainedTsBlock 为空，scanOffset 设置为 returnedMaxTime
+                else {
+                    offsetTime = inputTsBlocks[i].getTimeByIndex(inputIndex[i]);
+                }
+
+                stateManager.updateScanOffset(scanPath, offsetTime);
+                stateManager.updateScanCouldEqual(scanPath, true);
+            }
+
+            // Update full outer join status
+            stateManager.updateScanFullOuterJoin(scanPath, true);
+        }
+    }
+
+    /**
+     * Extract series path from child operator if it is ExchangeOperator. If sourceId is
+     * found, use its sourceId -> seriesPath; otherwise create a default path.
+     *
+     */
+    private void extractSeriesPathFromChild() {
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        if(!queryStateManager.getAllScanPathList().isEmpty()){
+            queryStateManager.getAllScanStates().forEach((key, value) -> {
+                if(value.isFullOuterJoin()){
+                  childScanPaths.add(key);
+                }
+            });
+            return ;
+        }
+        for(int i = 0; i < inputOperatorsCount; i++){
+            childScanPaths.add("child_" + i + "_" + operatorContext.getPlanNodeId());
+        }
+    }
 }

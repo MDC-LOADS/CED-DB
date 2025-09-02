@@ -21,16 +21,31 @@ package org.apache.iotdb.db.queryengine.execution.operator.sink;
 
 import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ScanInfoConverter;
+import org.apache.iotdb.db.queryengine.execution.colquery.colservice.C2EColService;
+import org.apache.iotdb.db.queryengine.execution.colquery.colservice.Column;
+import org.apache.iotdb.db.queryengine.execution.colquery.colservice.ScanInfo;
+import org.apache.iotdb.db.queryengine.execution.colquery.colservice.TimeColumn;
 import org.apache.iotdb.db.queryengine.execution.exchange.sink.DownStreamChannelIndex;
 import org.apache.iotdb.db.queryengine.execution.exchange.sink.ISinkHandle;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.thrift.TException;
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.layered.TFramedTransport;
 import org.apache.tsfile.read.common.block.TsBlock;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class IdentitySinkOperator implements Operator {
 
@@ -44,6 +59,8 @@ public class IdentitySinkOperator implements Operator {
   private final DownStreamChannelIndex downStreamChannelIndex;
 
   private final ISinkHandle sinkHandle;
+
+  private volatile ISinkHandle colSinkHandle;
 
   private boolean needToReturnNull = false;
 
@@ -62,6 +79,56 @@ public class IdentitySinkOperator implements Operator {
 
   @Override
   public boolean hasNext() throws Exception {
+    QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    if(queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
+      if (queryStateManager.getStateMachine().getState() == ColQueryState.PRE_COL_QUERY) {
+          this.colSinkHandle = queryStateManager.getSinkHandle();
+          colSinkHandle.tryOpenChannel(0);
+          queryStateManager.getStateMachine().transitionToColQuery();
+      }
+      if(queryStateManager.getStateMachine().getState()==ColQueryState.PRE_CLOSED){
+          while(colSinkHandle.getChannel(0).getNumOfBufferedTsBlocks()!=0){
+              try {
+                  Thread.sleep(10);
+                  //          System.out.println("waiting");
+              } catch (InterruptedException e) {
+                  throw new RuntimeException(e);
+              }
+          }
+          colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
+          colSinkHandle.close();
+          //调用关闭函数
+          if(queryStateManager.isSingleScan()){
+              String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
+              QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
+              long offset = scanStates.getOffset();
+              String seriesPath = queryStateManager.getSeriesPath(planNodeId);
+              callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,false);
+          }else {
+              List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
+              List<String> seriesPaths = queryStateManager.getAllScanPathList();
+              List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+              int i=0;
+              Map<String, ScanInfo> scanInfoMap = new HashMap<>();
+              for(QueryStateManager.ScanStates scanState:scanStates)
+              {
+                  ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
+                  scanInfoMap.put(planNodeIds.get(i),scanInfo);
+                  i++;
+              }
+              if(queryStateManager.hasLeftOuterJoin()){
+                  TsBlock cache = queryStateManager.getLeftOuterJoinCache();
+                  ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
+                  callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
+              }else {
+                  callColQueryClose(scanInfoMap);
+              }
+          }
+          queryStateManager.getStateMachine().transitionToClosed();
+          isFinished = true;
+          return false;
+      }
+    }
     int currentIndex = downStreamChannelIndex.getCurrentIndex();
     boolean currentChannelClosed = sinkHandle.isChannelClosed(currentIndex);
     if (!currentChannelClosed && children.get(currentIndex).hasNextWithTimer()) {
@@ -80,6 +147,49 @@ public class IdentitySinkOperator implements Operator {
     currentIndex++;
     if (currentIndex >= children.size()) {
       isFinished = true;
+      if(queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+          if(queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY){
+              while(colSinkHandle.getChannel(0).getNumOfBufferedTsBlocks()!=0){
+                  try {
+                      Thread.sleep(10);
+                      //          System.out.println("waiting");
+                  } catch (InterruptedException e) {
+                      throw new RuntimeException(e);
+                  }
+              }
+              colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
+              colSinkHandle.close();
+              queryStateManager.getStateMachine().transitionToPreClosed();
+              //调用关闭函数
+              if(queryStateManager.isSingleScan()){
+                  String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
+                  QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
+                  long offset = scanStates.getOffset();
+                  String seriesPath = queryStateManager.getSeriesPath(planNodeId);
+                  callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,false);
+              }else {
+                  List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
+                  List<String> seriesPaths = queryStateManager.getAllScanPathList();
+                  List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+                  int i=0;
+                  Map<String, ScanInfo> scanInfoMap = new HashMap<>();
+                  for(QueryStateManager.ScanStates scanState:scanStates)
+                  {
+                      ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
+                      scanInfoMap.put(planNodeIds.get(i),scanInfo);
+                      i++;
+                  }
+                  if(queryStateManager.hasLeftOuterJoin()){
+                      TsBlock cache = queryStateManager.getLeftOuterJoinCache();
+                      ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
+                      callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
+                  }else {
+                      callColQueryClose(scanInfoMap);
+                  }
+              }
+              queryStateManager.getStateMachine().transitionToClosed();
+          }
+      }
       return false;
     }
     downStreamChannelIndex.setCurrentIndex(currentIndex);
@@ -99,6 +209,28 @@ public class IdentitySinkOperator implements Operator {
 
   @Override
   public TsBlock next() throws Exception {
+    QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    if(queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+      if(queryStateManager.getStateMachine().getState()== ColQueryState.COL_QUERY){
+        if (needToReturnNull) {
+            needToReturnNull = false;
+            return null;
+        }
+        TsBlock res = children.get(downStreamChannelIndex.getCurrentIndex()).nextWithTimer();
+        //TODO:开始发送数据
+        if(res.getPositionCount()!=0 && !colSinkHandle.isAborted()){
+            try {
+                Thread.sleep(2);
+                  //          System.out.println("waiting");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            colSinkHandle.send(res);//发送数据
+//          System.out.println("series scan send");
+        }
+        return res;
+      }
+    }
     if (needToReturnNull) {
       needToReturnNull = false;
       return null;
@@ -167,5 +299,47 @@ public class IdentitySinkOperator implements Operator {
             .sum()
         + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(operatorContext)
         + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sinkHandle);
+  }
+
+  public void callColQueryClose(Map<String, ScanInfo> scanInfoMap) throws TException{
+      try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9090))) {
+          TProtocol protocol = new TBinaryProtocol(transport);
+          C2EColService.Client client = new C2EColService.Client(protocol);
+          transport.open();
+          // 调用服务方法
+
+          client.ColQueryClose(scanInfoMap);
+//            System.out.println("ansData:"+SourceId+" sent successfully.");
+      } catch (TException x) {
+          x.printStackTrace();
+      }
+  }
+
+  public void callColQueryCloseWithLeftOuterJoin(Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumn, List<Column> valueColumns,boolean isRightCache) throws TException{
+      try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9090))) {
+          TProtocol protocol = new TBinaryProtocol(transport);
+          C2EColService.Client client = new C2EColService.Client(protocol);
+          transport.open();
+          // 调用服务方法
+
+          client.ColQueryCloseWithLeftOuterJoin(scanInfoMap,timeColumn,valueColumns,isRightCache);
+//            System.out.println("ansData:"+SourceId+" sent successfully.");
+      } catch (TException x) {
+          x.printStackTrace();
+      }
+  }
+
+  public void callColQueryCloseWithSingleScan(String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException{
+      try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9090))) {
+          TProtocol protocol = new TBinaryProtocol(transport);
+          C2EColService.Client client = new C2EColService.Client(protocol);
+          transport.open();
+          // 调用服务方法
+
+          client.ColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,isCloudEqual);
+//            System.out.println("ansData:"+SourceId+" sent successfully.");
+      } catch (TException x) {
+          x.printStackTrace();
+      }
   }
 }

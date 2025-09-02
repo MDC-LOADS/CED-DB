@@ -36,6 +36,8 @@ import org.apache.iotdb.db.queryengine.execution.aggregation.AccumulatorFactory;
 import org.apache.iotdb.db.queryengine.execution.aggregation.Aggregator;
 import org.apache.iotdb.db.queryengine.execution.aggregation.slidingwindow.SlidingWindowAggregatorFactory;
 import org.apache.iotdb.db.queryengine.execution.aggregation.timerangeiterator.ITimeRangeIterator;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.driver.DataDriverContext;
 import org.apache.iotdb.db.queryengine.execution.driver.SchemaDriverContext;
 import org.apache.iotdb.db.queryengine.execution.exchange.MPPDataExchangeManager;
@@ -273,6 +275,8 @@ import org.apache.tsfile.read.TimeValuePair;
 import org.apache.tsfile.read.common.block.TsBlockBuilder;
 import org.apache.tsfile.read.common.block.column.TimeColumn;
 import org.apache.tsfile.read.filter.basic.Filter;
+import org.apache.tsfile.read.filter.factory.FilterFactory;
+import org.apache.tsfile.read.filter.factory.TimeFilterApi;
 import org.apache.tsfile.read.filter.operator.TimeFilterOperators.TimeGt;
 import org.apache.tsfile.read.filter.operator.TimeFilterOperators.TimeGtEq;
 import org.apache.tsfile.utils.Binary;
@@ -425,6 +429,37 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
                 rootOperator);
       }
       return rootOperator;
+    }
+    QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+        QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
+        Filter newOffsetFilter;
+        if(scanStates.isCouldEqual()){
+            newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());
+        }else {
+            newOffsetFilter = TimeFilterApi.gt(scanStates.getOffset());
+        }
+        SeriesScanOptions oldSeriesScanOptions = seriesScanOperator.getSeriesScanOptions();
+        Filter existingFilter = oldSeriesScanOptions.getGlobalTimeFilter();
+        Filter combinedFilter = null;
+        if (existingFilter != null) {
+            combinedFilter = FilterFactory.and(existingFilter, newOffsetFilter);
+//          System.out.println("组合现有过滤器和新timestamp过滤器");
+        } else {
+            combinedFilter = newOffsetFilter;
+//          System.out.println("使用新timestamp过滤器作为globalTimeFilter");
+        }
+        // 创建新的SeriesScanOptions
+        SeriesScanOptions.Builder builder = new SeriesScanOptions.Builder();
+        SeriesScanOptions newScanOptions = builder
+            .withGlobalTimeFilter(combinedFilter)
+            .withPushDownFilter(oldSeriesScanOptions.getPushDownFilter())
+            .withPushDownLimit(node.getPushDownLimit())
+            .withPushDownOffset(node.getPushDownOffset())
+            .build();
+        builder.withAllSensors(oldSeriesScanOptions.getAllSensors());
+        newScanOptions = builder.build();
+        seriesScanOperator.getSeriesScanUtil().setSeriesScanOptions(newScanOptions);
     }
     return seriesScanOperator;
   }

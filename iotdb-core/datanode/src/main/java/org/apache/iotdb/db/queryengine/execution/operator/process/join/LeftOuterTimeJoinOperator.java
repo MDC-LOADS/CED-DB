@@ -20,6 +20,8 @@
 package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.ProcessOperator;
@@ -36,6 +38,7 @@ import org.apache.tsfile.read.common.block.column.TimeColumn;
 import org.apache.tsfile.read.common.block.column.TimeColumnBuilder;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -74,6 +77,8 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
   private final long maxReturnSize =
       TSFileDescriptor.getInstance().getConfig().getMaxTsBlockSizeInBytes();
 
+
+
   public LeftOuterTimeJoinOperator(
       OperatorContext operatorContext,
       Operator leftChild,
@@ -89,6 +94,16 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
     this.left = leftChild;
     this.leftColumnCount = leftColumnCount;
     this.right = rightChild;
+    if(QueryStateManager.isInitialized()){
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+            if(queryStateManager.getIsRightCache()){
+                this.rightTsBlock = queryStateManager.getLeftOuterJoinCache();
+            }else {
+                this.leftTsBlock = queryStateManager.getLeftOuterJoinCache();
+            }
+        }
+    }
   }
 
   @Override
@@ -164,6 +179,8 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
     }
     TsBlock res = resultBuilder.build();
     resultBuilder.reset();
+      // Update left outer join cache after processing
+      updateLeftOuterJoinCache();
     return res;
   }
 
@@ -353,4 +370,108 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
         + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(right)
         + resultBuilder.getRetainedSizeInBytes();
   }
+
+    /**
+     * Update left outer join cache in QueryStateManager after each next() call.
+     *
+     * <p>This method implements the specified caching logic:
+     * 1. If leftTsBlock is empty, cache data from rightTsBlock where timestamps >= rightIndex timestamp
+     * 2. If rightTsBlock is empty, cache data from leftTsBlock where timestamps >= leftIndex timestamp
+     * 3. Set hasLeftOuterJoin = true when caching occurs
+     */
+    private void updateLeftOuterJoinCache() {
+        // Check if QueryStateManager singleton is initialized
+        if (!QueryStateManager.isInitialized()) {
+            return;
+        }
+
+        QueryStateManager stateManager = QueryStateManager.getInstance();
+
+        // Case 1: leftTsBlock is empty, cache data from rightTsBlock
+        if ((leftTsBlock == null || leftIndex >= leftTsBlock.getPositionCount())
+                && rightTsBlock != null && rightIndex < rightTsBlock.getPositionCount()) {
+
+            long thresholdTime = rightTsBlock.getTimeByIndex(rightIndex);
+            TsBlock cacheBlock = extractDataFromThreshold(rightTsBlock, rightIndex, thresholdTime);
+
+            if (cacheBlock != null && cacheBlock.getPositionCount() > 0) {
+                stateManager.setLeftOuterJoinCache(cacheBlock);
+                stateManager.setHasLeftOuterJoin(true);
+                stateManager.setIsRightCache(true);
+            }
+        }
+        // Case 2: rightTsBlock is empty or finished, cache data from leftTsBlock
+        else if ((rightFinished || rightTsBlock == null || rightIndex >= rightTsBlock.getPositionCount())
+                && leftTsBlock != null && leftIndex < leftTsBlock.getPositionCount()) {
+
+            long thresholdTime = leftTsBlock.getTimeByIndex(leftIndex);
+            TsBlock cacheBlock = extractDataFromThreshold(leftTsBlock, leftIndex, thresholdTime);
+
+            if (cacheBlock != null && cacheBlock.getPositionCount() > 0) {
+                stateManager.setLeftOuterJoinCache(cacheBlock);
+                stateManager.setHasLeftOuterJoin(true);
+                stateManager.setIsRightCache(false);
+            }
+        }
+    }
+
+    /**
+     * Extract data from a TsBlock starting from the given index where timestamps are >= threshold.
+     *
+     * @param tsBlock the source TsBlock to extract data from
+     * @param startIndex the starting index to begin extraction
+     * @param thresholdTime the minimum timestamp threshold for extraction
+     * @return a new TsBlock containing the extracted data, or null if no data meets criteria
+     */
+    private TsBlock extractDataFromThreshold(TsBlock tsBlock, int startIndex, long thresholdTime) {
+        if (tsBlock == null || startIndex >= tsBlock.getPositionCount()) {
+            return null;
+        }
+
+        // Count how many rows meet the threshold criteria
+        int validRowCount = 0;
+        for (int i = startIndex; i < tsBlock.getPositionCount(); i++) {
+            if (tsBlock.getTimeByIndex(i) >= thresholdTime) {
+                validRowCount++;
+            }
+        }
+
+        if (validRowCount == 0) {
+            return null;
+        }
+
+        // Create a new TsBlockBuilder with the same data types as the source
+        List<TSDataType> dataTypes = new ArrayList<>();
+        for (int i = 0; i < tsBlock.getValueColumnCount(); i++) {
+            dataTypes.add(tsBlock.getColumn(i).getDataType());
+        }
+        TsBlockBuilder cacheBuilder = new TsBlockBuilder(dataTypes);
+
+        TimeColumnBuilder timeColumnBuilder = cacheBuilder.getTimeColumnBuilder();
+
+        // Copy rows that meet the threshold criteria
+        for (int i = startIndex; i < tsBlock.getPositionCount(); i++) {
+            long timestamp = tsBlock.getTimeByIndex(i);
+            if (timestamp >= thresholdTime) {
+                // Copy timestamp
+                timeColumnBuilder.writeLong(timestamp);
+
+                // Copy value columns
+                for (int j = 0; j < tsBlock.getValueColumnCount(); j++) {
+                    Column sourceColumn = tsBlock.getColumn(j);
+                    ColumnBuilder targetColumnBuilder = cacheBuilder.getColumnBuilder(j);
+
+                    if (sourceColumn.isNull(i)) {
+                        targetColumnBuilder.appendNull();
+                    } else {
+                        targetColumnBuilder.write(sourceColumn, i);
+                    }
+                }
+
+                cacheBuilder.declarePosition();
+            }
+        }
+
+        return cacheBuilder.build();
+    }
 }

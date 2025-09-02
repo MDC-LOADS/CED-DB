@@ -1560,4 +1560,8 @@ public class SeriesScanUtil implements Accountable {
         + deviceID.ramBytesUsed()
         + MemoryEstimationHelper.getEstimatedSizeOfPartialPath(seriesPath);
   }
+
+    public void setSeriesScanOptions(SeriesScanOptions seriesScanOptions) {
+        this.scanOptions = seriesScanOptions;
+    }
 }

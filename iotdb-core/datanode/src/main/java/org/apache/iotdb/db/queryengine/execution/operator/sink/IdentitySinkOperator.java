@@ -47,6 +47,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.iotdb.common.rpc.thrift.TConsensusGroupType.DataRegion;
+
 public class IdentitySinkOperator implements Operator {
 
   private static final long INSTANCE_SIZE =
@@ -79,55 +81,59 @@ public class IdentitySinkOperator implements Operator {
 
   @Override
   public boolean hasNext() throws Exception {
-    QueryStateManager queryStateManager = QueryStateManager.getInstance();
-    if(queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
-      if (queryStateManager.getStateMachine().getState() == ColQueryState.PRE_COL_QUERY) {
-          this.colSinkHandle = queryStateManager.getSinkHandle();
-          colSinkHandle.tryOpenChannel(0);
-          queryStateManager.getStateMachine().transitionToColQuery();
-      }
-      if(queryStateManager.getStateMachine().getState()==ColQueryState.PRE_CLOSED){
-          while(colSinkHandle.getChannel(0).getNumOfBufferedTsBlocks()!=0){
-              try {
-                  Thread.sleep(10);
-                  //          System.out.println("waiting");
-              } catch (InterruptedException e) {
-                  throw new RuntimeException(e);
-              }
-          }
-          colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
-          colSinkHandle.close();
-          //调用关闭函数
-          if(queryStateManager.isSingleScan()){
-              String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
-              QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
-              long offset = scanStates.getOffset();
-              String seriesPath = queryStateManager.getSeriesPath(planNodeId);
-              callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,false);
-          }else {
-              List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
-              List<String> seriesPaths = queryStateManager.getAllScanPathList();
-              List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-              int i=0;
-              Map<String, ScanInfo> scanInfoMap = new HashMap<>();
-              for(QueryStateManager.ScanStates scanState:scanStates)
-              {
-                  ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
-                  scanInfoMap.put(planNodeIds.get(i),scanInfo);
-                  i++;
-              }
-              if(queryStateManager.hasLeftOuterJoin()){
-                  TsBlock cache = queryStateManager.getLeftOuterJoinCache();
-                  ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
-                  callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
-              }else {
-                  callColQueryClose(scanInfoMap);
-              }
-          }
-          queryStateManager.getStateMachine().transitionToClosed();
-          isFinished = true;
-          return false;
-      }
+    if(QueryStateManager.isInitialized()){
+//        .getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
+            if (queryStateManager.getStateMachine().getState() == ColQueryState.PRE_COL_QUERY) {
+                this.colSinkHandle = queryStateManager.getSinkHandle();
+                colSinkHandle.tryOpenChannel(0);
+                queryStateManager.getStateMachine().transitionToColQuery();
+            }
+            if(queryStateManager.getStateMachine().getState()==ColQueryState.PRE_CLOSED){
+                while(colSinkHandle.getChannel(0).getNumOfBufferedTsBlocks()!=0){
+                    try {
+                        Thread.sleep(10);
+                        //          System.out.println("waiting");
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
+                colSinkHandle.close();
+                //调用关闭函数
+                if(queryStateManager.isSingleScan()){
+                    String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
+                    QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
+                    long offset = scanStates.getOffset();
+                    String seriesPath = queryStateManager.getSeriesPath(planNodeId);
+                    callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,false);
+                }else {
+                    List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
+                    List<String> seriesPaths = queryStateManager.getAllScanPathList();
+                    List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+                    int i=0;
+                    Map<String, ScanInfo> scanInfoMap = new HashMap<>();
+                    for(QueryStateManager.ScanStates scanState:scanStates)
+                    {
+                        ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
+                        scanInfoMap.put(planNodeIds.get(i),scanInfo);
+                        i++;
+                    }
+                    if(queryStateManager.hasLeftOuterJoin()){
+                        TsBlock cache = queryStateManager.getLeftOuterJoinCache();
+                        ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
+                        callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
+                    }else {
+                        callColQueryClose(scanInfoMap);
+                    }
+                }
+                queryStateManager.getStateMachine().transitionToClosed();
+                System.out.println("\n从这走的？");
+                isFinished = true;
+                return false;
+            }
+        }
     }
     int currentIndex = downStreamChannelIndex.getCurrentIndex();
     boolean currentChannelClosed = sinkHandle.isChannelClosed(currentIndex);
@@ -137,59 +143,68 @@ public class IdentitySinkOperator implements Operator {
       // we close the child directly. The child could be an ExchangeOperator which is the downstream
       // of an ISinkChannel of a pipeline driver.
       closeCurrentChild(currentIndex);
+                    System.out.println("不会是在这结束的吧。。。else-if");
+
     } else {
       // current child has no more data
+        if(QueryStateManager.isInitialized()){
+            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+                if(queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY){
+                    System.out.println("\n要结束啦！");
+                    while(colSinkHandle.getChannel(0).getNumOfBufferedTsBlocks()!=0){
+                        try {
+                            Thread.sleep(10);
+                            System.out.println("waiting");
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    System.out.println("\n马上结束了");
+                    colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
+                    colSinkHandle.close();
+                    System.out.println("\ncolSinkHandle closed");
+                    queryStateManager.getStateMachine().transitionToPreClosed();
+                    //调用关闭函数
+                  if(queryStateManager.isSingleScan()){
+                      String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
+                      QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
+                      long offset = scanStates.getOffset();
+                      String seriesPath = queryStateManager.getSeriesPath(planNodeId);
+                      callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,false);
+                  }else {
+                      List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
+                      List<String> seriesPaths = queryStateManager.getAllScanPathList();
+                      List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+                      int i=0;
+                      Map<String, ScanInfo> scanInfoMap = new HashMap<>();
+                      for(QueryStateManager.ScanStates scanState:scanStates)
+                      {
+                          ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
+                          scanInfoMap.put(planNodeIds.get(i),scanInfo);
+                          i++;
+                      }
+                      if(queryStateManager.hasLeftOuterJoin()){
+                          TsBlock cache = queryStateManager.getLeftOuterJoinCache();
+                          ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
+                          callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
+                      }else {
+                          callColQueryClose(scanInfoMap);
+                      }
+                  }
+                    queryStateManager.getStateMachine().transitionToClosed();
+                }
+            }
+        }
       closeCurrentChild(currentIndex);
       sinkHandle.setNoMoreTsBlocksOfOneChannel(downStreamChannelIndex.getCurrentIndex());
+
     }
 
     // increment the index
     currentIndex++;
     if (currentIndex >= children.size()) {
       isFinished = true;
-      if(queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
-          if(queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY){
-              while(colSinkHandle.getChannel(0).getNumOfBufferedTsBlocks()!=0){
-                  try {
-                      Thread.sleep(10);
-                      //          System.out.println("waiting");
-                  } catch (InterruptedException e) {
-                      throw new RuntimeException(e);
-                  }
-              }
-              colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
-              colSinkHandle.close();
-              queryStateManager.getStateMachine().transitionToPreClosed();
-              //调用关闭函数
-              if(queryStateManager.isSingleScan()){
-                  String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
-                  QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
-                  long offset = scanStates.getOffset();
-                  String seriesPath = queryStateManager.getSeriesPath(planNodeId);
-                  callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,false);
-              }else {
-                  List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
-                  List<String> seriesPaths = queryStateManager.getAllScanPathList();
-                  List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-                  int i=0;
-                  Map<String, ScanInfo> scanInfoMap = new HashMap<>();
-                  for(QueryStateManager.ScanStates scanState:scanStates)
-                  {
-                      ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
-                      scanInfoMap.put(planNodeIds.get(i),scanInfo);
-                      i++;
-                  }
-                  if(queryStateManager.hasLeftOuterJoin()){
-                      TsBlock cache = queryStateManager.getLeftOuterJoinCache();
-                      ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
-                      callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
-                  }else {
-                      callColQueryClose(scanInfoMap);
-                  }
-              }
-              queryStateManager.getStateMachine().transitionToClosed();
-          }
-      }
       return false;
     }
     downStreamChannelIndex.setCurrentIndex(currentIndex);
@@ -209,28 +224,39 @@ public class IdentitySinkOperator implements Operator {
 
   @Override
   public TsBlock next() throws Exception {
-    QueryStateManager queryStateManager = QueryStateManager.getInstance();
-    if(queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
-      if(queryStateManager.getStateMachine().getState()== ColQueryState.COL_QUERY){
-        if (needToReturnNull) {
-            needToReturnNull = false;
-            return null;
+    if(QueryStateManager.isInitialized()){
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        System.out.println("\n怀疑是IdentitySink的问题"+queryStateManager.getRootIdentitySinkId()+"\n");
+        if(queryStateManager.getRootIdentitySinkId()!=null){
+            System.out.println();
         }
-        TsBlock res = children.get(downStreamChannelIndex.getCurrentIndex()).nextWithTimer();
-        //TODO:开始发送数据
-        if(res.getPositionCount()!=0 && !colSinkHandle.isAborted()){
-            try {
-                Thread.sleep(2);
-                  //          System.out.println("waiting");
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+        if(queryStateManager.getRootIdentitySinkId()!=null &&
+                queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+            System.out.println("\n找到了，状态机状态为："+queryStateManager.getStateMachine().getState()+"\n");
+            if(queryStateManager.getStateMachine().getState()== ColQueryState.COL_QUERY){
+                if (needToReturnNull) {
+                    needToReturnNull = false;
+//                    System.out.println("不会是在这结束的吧。。。");
+                    return null;
+                }
+                TsBlock res = children.get(downStreamChannelIndex.getCurrentIndex()).nextWithTimer();
+                //TODO:开始发送数据
+                System.out.println("\n要开始发送啦！");
+                if(res!=null && res.getPositionCount()!=0 && !colSinkHandle.isAborted()){
+                    try {
+                        Thread.sleep(2);
+                        //          System.out.println("waiting");
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    colSinkHandle.send(res);//发送数据
+                    System.out.println("\nseries scan send");
+                }
+                return res;
             }
-            colSinkHandle.send(res);//发送数据
-//          System.out.println("series scan send");
         }
-        return res;
-      }
     }
+
     if (needToReturnNull) {
       needToReturnNull = false;
       return null;

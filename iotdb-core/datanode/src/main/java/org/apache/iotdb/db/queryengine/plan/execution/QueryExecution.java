@@ -80,6 +80,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Throwables.throwIfUnchecked;
+import static java.lang.Thread.sleep;
+import static org.apache.iotdb.common.rpc.thrift.TConsensusGroupType.DataRegion;
 import static org.apache.iotdb.db.queryengine.common.DataNodeEndPoints.isSameNode;
 import static org.apache.iotdb.db.queryengine.metric.QueryExecutionMetricSet.WAIT_FOR_RESULT;
 import static org.apache.iotdb.db.queryengine.metric.QueryPlanCostMetricSet.DISTRIBUTION_PLANNER;
@@ -179,17 +181,24 @@ public class QueryExecution implements IQueryExecution {
     checkTimeOutForQuery();
     doLogicalPlan();
     //如果状态机为START，将cloudFragmentId发送给边
-    QueryStateManager queryStateManager = QueryStateManager.getInstance();
-    if(queryStateManager.getStateMachine().getState()==ColQueryState.START && !this.logicalPlan.getContext().getSql().contains("Schema Fetch")){
+    if(QueryStateManager.isInitialized()){
+      QueryStateManager queryStateManager = QueryStateManager.getInstance();
+      if(queryStateManager.getStateMachine().getState()==ColQueryState.START && !this.logicalPlan.getContext().getSql().contains("Fetch Schema")){
+//        queryStateManager.setRootIdentitySinkId(this.logicalPlan.getRootNode().getPlanNodeId().getId());
         callAckMessage(queryStateManager.getAndAddCloudFragmentId());
         try{//直到状态机改变才开始继续执行
-            while(queryStateManager.getStateMachine().getState()!=ColQueryState.PRE_COL_QUERY){
-                wait();
-            }
+          while(queryStateManager.getStateMachine().getState()!=ColQueryState.PRE_COL_QUERY){
+            System.out.println("\n-------------\nQueryExecution start to wait\n-------------\n");
+//            wait();
+            Thread.sleep(10);
+          }
         }catch (InterruptedException e){
-            System.out.println("\n等待失败");
+          System.out.println("\n等待失败");
         }
+        System.out.println("\n-------------\nQueryExecution stop to wait\n-------------\n");
+      }
     }
+
     doDistributedPlan();
 
     // update timeout after finishing plan stage
@@ -241,7 +250,7 @@ public class QueryExecution implements IQueryExecution {
     this.stopAndCleanup(stateMachine.getFailureException());
     LOGGER.info("[WaitBeforeRetry] wait {}ms.", RETRY_INTERVAL_IN_MS);
     try {
-      Thread.sleep(RETRY_INTERVAL_IN_MS);
+      sleep(RETRY_INTERVAL_IN_MS);
     } catch (InterruptedException e) {
       LOGGER.warn("interrupted when waiting retry");
       Thread.currentThread().interrupt();
@@ -326,7 +335,13 @@ public class QueryExecution implements IQueryExecution {
           distributedPlan.getInstances().size(),
           printFragmentInstances(distributedPlan.getInstances()));
     }
-
+    if(QueryStateManager.isInitialized() && distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion) {
+      QueryStateManager queryStateManager = QueryStateManager.getInstance();
+      //设置根节点
+      queryStateManager.setRootIdentitySinkId(distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
+      System.out.println("\nFragmentInstances:"+printFragmentInstances(distributedPlan.getInstances()));
+      System.out.println("\nRoot Identity's PlanNodeId is:"+distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId().getId());
+    }
     // check timeout after building distribution plan because it could be time-consuming in some
     // cases.
     checkTimeOutForQuery();

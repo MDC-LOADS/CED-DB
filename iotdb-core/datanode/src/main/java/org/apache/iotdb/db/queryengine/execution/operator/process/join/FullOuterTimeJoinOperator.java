@@ -111,9 +111,11 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
             (1L + outputColumnCount)
                 * TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
     this.childScanPaths = new ArrayList<>();
-    QueryStateManager queryStateManager = QueryStateManager.getInstance();
-    if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+    if(QueryStateManager.isInitialized()){
+      QueryStateManager queryStateManager = QueryStateManager.getInstance();
+      if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
         extractSeriesPathFromChild();
+      }
     }
   }
 

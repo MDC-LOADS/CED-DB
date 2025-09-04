@@ -77,12 +77,12 @@ public class ServiceImpl implements E2CColService.Iface{
         queryStateManager.setEdgeFragmentId(edgeFragmentId);
         queryStateManager.createAndSetSinkHandle(edgeFragmentId);
         scanInfoMap.forEach((key, value) -> {
-            queryStateManager.setSeriesPathAndPlanNodeId(value.getSeriesPath(),key);
+            queryStateManager.setSeriesPathAndPlanNodeId(key,value.getSeriesPath());
             QueryStateManager.ScanStates scanStates = ScanInfoConverter.convertToScanStates(value);
             queryStateManager.setScanStates(value.getSeriesPath(),scanStates);
         });
         queryStateManager.getStateMachine().transitionToPreColQuery();
-        notifyAll();
+//        notifyAll();
     }
 
     @Override

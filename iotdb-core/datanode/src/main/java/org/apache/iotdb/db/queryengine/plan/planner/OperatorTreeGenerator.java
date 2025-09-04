@@ -430,37 +430,41 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
       }
       return rootOperator;
     }
-    QueryStateManager queryStateManager = QueryStateManager.getInstance();
-    if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
-        QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
-        Filter newOffsetFilter;
-        if(scanStates.isCouldEqual()){
-            newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());
-        }else {
-            newOffsetFilter = TimeFilterApi.gt(scanStates.getOffset());
-        }
-        SeriesScanOptions oldSeriesScanOptions = seriesScanOperator.getSeriesScanOptions();
-        Filter existingFilter = oldSeriesScanOptions.getGlobalTimeFilter();
-        Filter combinedFilter = null;
-        if (existingFilter != null) {
-            combinedFilter = FilterFactory.and(existingFilter, newOffsetFilter);
+    if(QueryStateManager.isInitialized()){
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+            System.out.println("\n-------------\nvisit series scan start to work\n-------------\n");
+            QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
+            Filter newOffsetFilter;
+            if(scanStates.isCouldEqual()){
+                newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());
+            }else {
+                newOffsetFilter = TimeFilterApi.gt(scanStates.getOffset());
+            }
+            SeriesScanOptions oldSeriesScanOptions = seriesScanOperator.getSeriesScanOptions();
+            Filter existingFilter = oldSeriesScanOptions.getGlobalTimeFilter();
+            Filter combinedFilter = null;
+            if (existingFilter != null) {
+                combinedFilter = FilterFactory.and(existingFilter, newOffsetFilter);
 //          System.out.println("组合现有过滤器和新timestamp过滤器");
-        } else {
-            combinedFilter = newOffsetFilter;
+            } else {
+                combinedFilter = newOffsetFilter;
 //          System.out.println("使用新timestamp过滤器作为globalTimeFilter");
+            }
+            // 创建新的SeriesScanOptions
+            SeriesScanOptions.Builder builder = new SeriesScanOptions.Builder();
+            SeriesScanOptions newScanOptions = builder
+                    .withGlobalTimeFilter(combinedFilter)
+                    .withPushDownFilter(oldSeriesScanOptions.getPushDownFilter())
+                    .withPushDownLimit(node.getPushDownLimit())
+                    .withPushDownOffset(node.getPushDownOffset())
+                    .build();
+            builder.withAllSensors(oldSeriesScanOptions.getAllSensors());
+            newScanOptions = builder.build();
+            seriesScanOperator.getSeriesScanUtil().setSeriesScanOptions(newScanOptions);
         }
-        // 创建新的SeriesScanOptions
-        SeriesScanOptions.Builder builder = new SeriesScanOptions.Builder();
-        SeriesScanOptions newScanOptions = builder
-            .withGlobalTimeFilter(combinedFilter)
-            .withPushDownFilter(oldSeriesScanOptions.getPushDownFilter())
-            .withPushDownLimit(node.getPushDownLimit())
-            .withPushDownOffset(node.getPushDownOffset())
-            .build();
-        builder.withAllSensors(oldSeriesScanOptions.getAllSensors());
-        newScanOptions = builder.build();
-        seriesScanOperator.getSeriesScanUtil().setSeriesScanOptions(newScanOptions);
     }
+
     return seriesScanOperator;
   }
 

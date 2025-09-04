@@ -58,9 +58,9 @@ public class QueryStateManager {
 
   private final ConcurrentHashMap<String, ScanStates> scanStatesMap = new ConcurrentHashMap<>();//SeriesPath定位scan算子的状态
 
-  private final ConcurrentHashMap<String, String> scanPathsMap =new ConcurrentHashMap<>();//PlanNodeId和SeriesPath对应
+  private final ConcurrentHashMap<String, String> scanPathsMap =new ConcurrentHashMap<>();//PlanNodeId->SeriesPath对应
 
-  private final ConcurrentHashMap<String, String> scanPlanNodeIdsMap =new ConcurrentHashMap<>();//PlanNodeId和SeriesPath一一对应
+  private final ConcurrentHashMap<String, String> scanPlanNodeIdsMap =new ConcurrentHashMap<>();//SeriesPath->PlanNodeId一一对应
 
   private volatile boolean hasLeftOuterJoin = false;//查询是否含有左外连接算子
 
@@ -411,6 +411,7 @@ public class QueryStateManager {
   }
 
   public boolean isHasSeriesPath(String seriesPlanNodeId) {
+    System.out.println("isHasSeriesPath:"+scanPathsMap.get(seriesPlanNodeId));
     return scanPathsMap.get(seriesPlanNodeId) != null;
   }
 
@@ -523,11 +524,11 @@ public class QueryStateManager {
   }
 
   public List<String> getAllScanPathList() {
-        return new ArrayList<>(scanStatesMap.keySet());
+        return new ArrayList<>(scanPlanNodeIdsMap.keySet());
     }
 
   public List<String> getAllScanPlanNodeIdList() {
-        return new ArrayList<>(scanPlanNodeIdsMap.values());
+        return new ArrayList<>(scanPathsMap.keySet());
     }
 
   public void setSourceHandle(ISourceHandle sourceHandle) {
@@ -564,6 +565,12 @@ public class QueryStateManager {
       FragmentInstanceContext instanceContext = new FragmentInstanceContext(query_num);
       DownStreamChannelIndex downStreamChannelIndex = new DownStreamChannelIndex(0);
       String localPlanNodeId = "colCloudPlanNodeId";
+      System.out.println("localPlanNodeId:"+localPlanNodeId);
+      System.out.println("colPlanNodeId:"+colPlanNodeId);
+      System.out.println("colQueryId:"+colQueryId.getId());
+      System.out.println("edgeFragmentId:"+edgeFragmentId);
+      System.out.println("cloudFragmentId:"+cloudFragmentId);
+
       this.sinkHandle =
               MPP_DATA_EXCHANGE_MANAGER.createShuffleSinkHandle(
                       Collections.singletonList(

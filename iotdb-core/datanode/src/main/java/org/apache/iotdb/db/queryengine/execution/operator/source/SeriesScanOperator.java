@@ -52,8 +52,11 @@ public class SeriesScanOperator extends AbstractSeriesScanOperator {
         this.maxReturnSize =
                 Math.min(maxReturnSize, TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
         //添加当前scan路径和sourceId
-        QueryStateManager stateManager = QueryStateManager.getInstance();
-        stateManager.setSeriesPathAndPlanNodeId(this.sourceId.getId(),this.seriesScanUtil.seriesPath.toString());
+        if(QueryStateManager.isInitialized()){
+            QueryStateManager stateManager = QueryStateManager.getInstance();
+            stateManager.setSeriesPathAndPlanNodeId(this.sourceId.getId(),this.seriesScanUtil.seriesPath.toString());
+        }
+
 
     }
 

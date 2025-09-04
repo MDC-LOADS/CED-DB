@@ -83,12 +83,14 @@ public class ExchangeOperator implements SourceOperator {
     @Override
     public TsBlock next() throws Exception {
         TsBlock res = sourceHandle.receive();
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        if(queryStateManager.isHasSeriesPath(sourceId.getId()) && !queryStateManager.isSingleScan()) {
-            long currentEndTime = res.getEndTime();
-            queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
-            if(!queryStateManager.hasScanSourceHandle(sourceId.getId())) {
-                queryStateManager.addScanSourceHandle(sourceId.getId(),sourceHandle);
+        if(QueryStateManager.isInitialized()){
+            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            if(queryStateManager.isHasSeriesPath(sourceId.getId()) && !queryStateManager.isSingleScan()) {
+                long currentEndTime = res.getEndTime();
+                queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
+                if(!queryStateManager.hasScanSourceHandle(sourceId.getId())) {
+                    queryStateManager.addScanSourceHandle(sourceId.getId(),sourceHandle);
+                }
             }
         }
         return res;

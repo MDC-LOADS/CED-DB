@@ -65,14 +65,16 @@ public class IdentitySinkOperator implements Operator {
 
     @Override
     public boolean hasNext() throws Exception {
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY
-                && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
-            ISourceHandle sourceHandle = queryStateManager.getSourceHandle();
-            if(!sourceHandle.isFinished()){
-                return true;//如果已经打开通道开始传输数据了，返回还有数据
+        if(QueryStateManager.isInitialized()){
+            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY
+                    && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
+                ISourceHandle sourceHandle = queryStateManager.getSourceHandle();
+                if(!sourceHandle.isFinished()){
+                    return true;//如果已经打开通道开始传输数据了，返回还有数据
+                }
+                //TODO:进入重启阶段
             }
-            //TODO:进入重启阶段
         }
         int currentIndex = downStreamChannelIndex.getCurrentIndex();
         boolean currentChannelClosed = sinkHandle.isChannelClosed(currentIndex);
@@ -111,31 +113,35 @@ public class IdentitySinkOperator implements Operator {
 
     @Override
     public TsBlock next() throws Exception {
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
-            if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY) {
-                ISourceHandle colSourceHandle=queryStateManager.getSourceHandle();
-                TsBlock tsBlock_rev = null;
-                if(colSourceHandle!=null){
-                    ListenableFuture<?> isBlocked = colSourceHandle.isBlocked();
-                    while (!isBlocked.isDone()&&!colSourceHandle.isFinished()) {
-                        try {
-                            Thread.sleep(10);//时间
+        if(QueryStateManager.isInitialized()){
+            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+//                System.out.println("\n- - - - - - - - - -\nTsBlock comes");
+                if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY) {
+                    ISourceHandle colSourceHandle=queryStateManager.getSourceHandle();
+                    TsBlock tsBlock_rev = null;
+                    if(colSourceHandle!=null){
+                        ListenableFuture<?> isBlocked = colSourceHandle.isBlocked();
+                        while (!isBlocked.isDone()&&!colSourceHandle.isFinished()) {
+                            try {
+                                Thread.sleep(10);//时间
 //          System.out.println("waiting");
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
                         }
-                    }
-                    if (!colSourceHandle.isFinished()) {
-                        tsBlock_rev = colSourceHandle.receive();
-                    }
+                        if (!colSourceHandle.isFinished()) {
+                            tsBlock_rev = colSourceHandle.receive();
+                        }
 //                    else{
 //                        //数据查完了,此时的状态应该是PRE_CLOSED
 //                    }
+                    }
+                    return tsBlock_rev;
                 }
-                return tsBlock_rev;
             }
         }
+
 
         if (needToReturnNull) {
             needToReturnNull = false;
@@ -146,10 +152,14 @@ public class IdentitySinkOperator implements Operator {
             System.out.println("\n"+i+": "+children.get(i).toString());
         }
         TsBlock res = children.get(downStreamChannelIndex.getCurrentIndex()).nextWithTimer();
-        if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY
-                      && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
-            queryStateManager.getStateMachine().transitionToColQuery();
-            notifyAll();
+        if(QueryStateManager.isInitialized()){
+            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY
+                    && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+                queryStateManager.getStateMachine().transitionToColQuery();
+                System.out.println("\n转变为协同查询");
+//                notifyAll();
+            }
         }
         return res;
     }

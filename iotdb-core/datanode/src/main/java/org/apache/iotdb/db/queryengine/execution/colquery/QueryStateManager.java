@@ -392,11 +392,11 @@ public class QueryStateManager {
   }
 
   public List<String> getAllScanPathList() {
-    return new ArrayList<>(scanStatesMap.keySet());
+    return new ArrayList<>(scanPlanNodeIdsMap.keySet());
   }
 
   public List<String> getAllScanPlanNodeIdList() {
-    return new ArrayList<>(scanPlanNodeIdsMap.values());
+    return new ArrayList<>(scanPathsMap.keySet());
   }
 
   public void setScanStates(String scanPath, ScanStates scanStates) {

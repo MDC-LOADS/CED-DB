@@ -171,7 +171,7 @@ public class QueryExecution implements IQueryExecution {
         checkTimeOutForQuery();
         doLogicalPlan();
 
-        if(!this.logicalPlan.getContext().getSql().contains("Schema Fetch")){
+        if(!this.logicalPlan.getContext().getSql().contains("Fetch Schema")){
 
             QueryStateManager stateManager = QueryStateManager.initialize();
             ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -187,8 +187,10 @@ public class QueryExecution implements IQueryExecution {
 
         doDistributedPlan();
 
+//        if(!this.logicalPlan.getContext().getSql().contains("Fetch Schema")){
+//            ResourceMonitor.startColQuery();
+//        }
 
-//        ResourceMonitor.startColQuery();
 
 
         // update timeout after finishing plan stage

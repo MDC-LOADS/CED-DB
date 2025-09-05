@@ -91,9 +91,12 @@ public class ExchangeOperator implements SourceOperator {
           for (String plan : plans) {
             System.out.println("plan id:" + plan);
           }
-          if(queryStateManager.isHasSeriesPath(sourceId.getId()) && !queryStateManager.isSingleScan()) {
+          if(queryStateManager.isHasSeriesPath(sourceId.getId())
+                  && !queryStateManager.isSingleScan()
+                  && queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
               long currentEndTime = res.getEndTime();
               queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
+              System.out.println("设置了偏移量 Exchange id为："+sourceId.getId());
           }
       }
     return res;

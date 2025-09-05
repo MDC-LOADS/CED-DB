@@ -29,7 +29,9 @@ import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.AbstractConsumeAllOperator;
 import org.apache.iotdb.db.queryengine.execution.operator.process.join.merge.ColumnMerger;
 import org.apache.iotdb.db.queryengine.execution.operator.process.join.merge.TimeComparator;
+import org.apache.iotdb.db.queryengine.execution.operator.source.AbstractDataSourceOperator;
 import org.apache.iotdb.db.queryengine.execution.operator.source.ExchangeOperator;
+import org.apache.iotdb.db.queryengine.execution.operator.source.SeriesScanUtil;
 import org.apache.iotdb.db.queryengine.plan.statement.component.Ordering;
 import org.apache.iotdb.db.utils.datastructure.TimeSelector;
 
@@ -115,6 +117,9 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
       QueryStateManager queryStateManager = QueryStateManager.getInstance();
       if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
         extractSeriesPathFromChild();
+//        for (int i = 0; i < inputOperatorsCount; i++) {
+//          extractExchangeFromChild(children.get(i), i);
+//        }
       }
     }
   }
@@ -458,4 +463,36 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
             childScanPaths.add("child_" + i + "_" + operatorContext.getPlanNodeId());
         }
     }
+
+  private void extractExchangeFromChild(Operator childOperator, int i) {
+    // Check if child operator is an AbstractDataSourceOperator that contains SeriesScanUtil
+    QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    if (childOperator instanceof AbstractDataSourceOperator) {
+//      AbstractDataSourceOperator dataSourceOperator = (AbstractDataSourceOperator) childOperator;
+      // Access the seriesScanUtil field using reflection to get seriesPath
+      try {
+        queryStateManager.setScanPathExchangeByPlanNodeId(childOperator.getOperatorContext().getPlanNodeId().getId(),false);
+//        java.lang.reflect.Field seriesScanUtilField = AbstractDataSourceOperator.class.getDeclaredField("seriesScanUtil");
+//        seriesScanUtilField.setAccessible(true);
+//        SeriesScanUtil seriesScanUtil = (SeriesScanUtil) seriesScanUtilField.get(dataSourceOperator);
+//        if (seriesScanUtil != null) {
+//          // Access the seriesPath field from SeriesScanUtil
+//          java.lang.reflect.Field seriesPathField = SeriesScanUtil.class.getDeclaredField("seriesPath");
+//          seriesPathField.setAccessible(true); Object seriesPathObj = seriesPathField.get(seriesScanUtil);
+//          if (seriesPathObj != null) {
+//
+//          }
+//        }
+      } catch (Exception e) {
+        // Log the exception and fall back to default naming
+        // Consider adding proper logging here if needed
+      }
+    } else if (childOperator instanceof ExchangeOperator) {
+      queryStateManager.setScanPathExchangeByPlanNodeId(childOperator.getOperatorContext().getPlanNodeId().getId(),true);
+    }else{
+      System.out.println("childOperator is not Series or Exchange operator");
+    }
+
+  }
+
 }

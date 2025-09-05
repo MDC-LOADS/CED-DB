@@ -38,8 +38,9 @@ public class ServiceImpl implements E2CColService.Iface{
         queryStateManager.setEdgeFragmentId(edgeFragmentId);
         queryStateManager.createAndSetSinkHandle(edgeFragmentId);
         scanInfoMap.forEach((key, value) -> {
-            queryStateManager.setSeriesPathAndPlanNodeId(value.getSeriesPath(),key);
+            queryStateManager.setSeriesPathAndPlanNodeId(key,value.getSeriesPath());
             QueryStateManager.ScanStates scanStates = ScanInfoConverter.convertToScanStates(value);
+            scanStates.setScanTimestamp(value.offset);
             queryStateManager.setScanStates(value.getSeriesPath(),scanStates);
         });
         List<TSDataType> inferredTypes = valueColumns.stream()
@@ -68,7 +69,6 @@ public class ServiceImpl implements E2CColService.Iface{
         queryStateManager.setLeftOuterJoinCache(cache);
         queryStateManager.setIsRightCache(isRightCache);
         queryStateManager.getStateMachine().transitionToPreColQuery();
-        notifyAll();
     }
 
     @Override
@@ -79,6 +79,7 @@ public class ServiceImpl implements E2CColService.Iface{
         scanInfoMap.forEach((key, value) -> {
             queryStateManager.setSeriesPathAndPlanNodeId(key,value.getSeriesPath());
             QueryStateManager.ScanStates scanStates = ScanInfoConverter.convertToScanStates(value);
+            scanStates.setScanTimestamp(value.offset);
             queryStateManager.setScanStates(value.getSeriesPath(),scanStates);
         });
         queryStateManager.getStateMachine().transitionToPreColQuery();
@@ -94,7 +95,6 @@ public class ServiceImpl implements E2CColService.Iface{
         queryStateManager.setScanStates(seriesPath,new QueryStateManager.ScanStates(0,offset,isCloudEqual,false,false));
         queryStateManager.setSingleScan(true);
         queryStateManager.getStateMachine().transitionToPreColQuery();
-        notifyAll();
     }
 
     @Override

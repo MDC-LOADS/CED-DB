@@ -34,6 +34,7 @@ import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.iotdb.db.service.DataNode;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -90,49 +91,6 @@ public class IdentitySinkOperator implements Operator {
                 colSinkHandle.tryOpenChannel(0);
                 queryStateManager.getStateMachine().transitionToColQuery();
             }
-            if(queryStateManager.getStateMachine().getState()==ColQueryState.PRE_CLOSED){
-                while(colSinkHandle.getChannel(0).getNumOfBufferedTsBlocks()!=0){
-                    try {
-                        Thread.sleep(10);
-                        //          System.out.println("waiting");
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
-                colSinkHandle.close();
-                //调用关闭函数
-                if(queryStateManager.isSingleScan()){
-                    String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
-                    QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
-                    long offset = scanStates.getOffset();
-                    String seriesPath = queryStateManager.getSeriesPath(planNodeId);
-                    callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,false);
-                }else {
-                    List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
-                    List<String> seriesPaths = queryStateManager.getAllScanPathList();
-                    List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-                    int i=0;
-                    Map<String, ScanInfo> scanInfoMap = new HashMap<>();
-                    for(QueryStateManager.ScanStates scanState:scanStates)
-                    {
-                        ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
-                        scanInfoMap.put(planNodeIds.get(i),scanInfo);
-                        i++;
-                    }
-                    if(queryStateManager.hasLeftOuterJoin()){
-                        TsBlock cache = queryStateManager.getLeftOuterJoinCache();
-                        ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
-                        callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
-                    }else {
-                        callColQueryClose(scanInfoMap);
-                    }
-                }
-                queryStateManager.getStateMachine().transitionToClosed();
-                System.out.println("\n从这走的？");
-                isFinished = true;
-                return false;
-            }
         }
     }
     int currentIndex = downStreamChannelIndex.getCurrentIndex();
@@ -143,7 +101,7 @@ public class IdentitySinkOperator implements Operator {
       // we close the child directly. The child could be an ExchangeOperator which is the downstream
       // of an ISinkChannel of a pipeline driver.
       closeCurrentChild(currentIndex);
-                    System.out.println("不会是在这结束的吧。。。else-if");
+//                    System.out.println("不会是在这结束的吧。。。else-if");
 
     } else {
       // current child has no more data
@@ -152,17 +110,7 @@ public class IdentitySinkOperator implements Operator {
             if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
                 if(queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY){
                     System.out.println("\n要结束啦！");
-                    while(colSinkHandle.getChannel(0).getNumOfBufferedTsBlocks()!=0){
-                        try {
-                            Thread.sleep(10);
-                            System.out.println("waiting");
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                    System.out.println("\n马上结束了");
                     colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
-                    colSinkHandle.close();
                     System.out.println("\ncolSinkHandle closed");
                     queryStateManager.getStateMachine().transitionToPreClosed();
                     //调用关闭函数
@@ -250,6 +198,7 @@ public class IdentitySinkOperator implements Operator {
                         throw new RuntimeException(e);
                     }
                     colSinkHandle.send(res);//发送数据
+                    System.out.println(showTsBlock(res));
                     System.out.println("\nseries scan send");
                 }
                 return res;
@@ -368,4 +317,66 @@ public class IdentitySinkOperator implements Operator {
           x.printStackTrace();
       }
   }
+
+    private String showTsBlock(TsBlock tsBlock) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n！！！准备发送当前的TsBlock为:\n");
+        // We keep the whole dump under read lock to keep a consistent snapshot
+//        lock.readLock().lock();
+        try {
+            sb.append("  Identity Sink TsBlock: present\n");
+            final int rowCount = tsBlock.getPositionCount();
+            final org.apache.tsfile.block.column.Column[] valueColumns = tsBlock.getValueColumns();
+            final int colCount = valueColumns == null ? 0 : valueColumns.length;
+            sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
+
+            // time column
+            long[] times = tsBlock.getTimeColumn() == null ? null : tsBlock.getTimeColumn().getTimes();
+            if (times != null) {
+                sb.append("    time:");
+                for (int i = 0; i < rowCount; i++) {
+                    sb.append(i == 0 ? " [" : ", ").append(times[i]);
+                }
+                sb.append("]\n");
+            } else {
+                sb.append("    time: <null>\n");
+            }
+
+            // values (assume double)
+            for (int c = 0; c < colCount; c++) {
+                sb.append("    col").append(c).append(":");
+                org.apache.tsfile.block.column.Column col = valueColumns[c];
+                if (col == null) {
+                    sb.append(" <null>\n");
+                    continue;
+                }
+                sb.append(" [");
+                for (int r = 0; r < rowCount; r++) {
+                    if (r > 0) sb.append(", ");
+                    // as requested, assume double type
+                    sb.append(col.getDouble(r));
+                }
+                sb.append("]\n");
+            }
+        } catch (Throwable t) {
+            sb.append("  LeftOuterJoinCache: <error dumping cache> ").append(t.getMessage()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    static class WaitForClose implements Runnable {
+        @Override
+        public void run() {
+            QueryStateManager qsm = QueryStateManager.getInstance();
+            while(!qsm.getSinkHandle().getChannel(0).isFinished()){
+                try {
+                    Thread.sleep(10);
+                    System.out.println("waiting 123");
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            qsm.getSinkHandle().close();
+        }
+    }
 }

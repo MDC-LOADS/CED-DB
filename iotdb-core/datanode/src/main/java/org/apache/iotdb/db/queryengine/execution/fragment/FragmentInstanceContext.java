@@ -332,7 +332,9 @@ public class FragmentInstanceContext extends QueryContext {
   }
 
   public void transitionToFlushing() {
-    stateMachine.transitionToFlushing();
+    if(stateMachine!=null){
+      stateMachine.transitionToFlushing();
+    }
   }
 
   public void cancel() {

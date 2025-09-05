@@ -23,7 +23,11 @@ public class ColQueryExample {
         ExecutorService executor = Executors.newCachedThreadPool();
         ColQueryStateMachine colQueryStateMachine = new ColQueryStateMachine("ColQuery-Test", executor);
         stateManager.setStateMachine(colQueryStateMachine);
-        stateManager.setSql("select t1,t2 from root.ln.wf01.wt02");
+//        stateManager.setSql("select t1,t2 from root.ln.wf01.wt02");
+//        stateManager.setSql("select t1 from root.ln.wf01.wt02");
+        stateManager.setSql("select * from root.ln.wf01.wt02");
+//        stateManager.setSql("select t1,t3,t4 from root.ln.wf01.wt02 where t1>5 and t2>100");
+
         System.out.println("\ncolQueryStateMachine start success");
 
         ResourceMonitor.startColQuery();
@@ -52,15 +56,17 @@ public class ColQueryExample {
             while(!colSourceHandle.isFinished()) {
                 if(colSourceHandle.isBlocked().isDone()  && !colSourceHandle.isFinished()){
                     tsBlock_rev = colSourceHandle.receive();
-                    long[] times =tsBlock_rev.getTimeColumn().getTimes();
-                    Column[] valueColumns = tsBlock_rev.getValueColumns();
-                    for(int i=0;i<tsBlock_rev.getPositionCount();i++){
-                        System.out.println("\n时间为:"+times[i]);
-                    }
-                    for(int i=0; i<valueColumns.length; i++){
-                        System.out.println("\n数值为:");
-                        for(int j=0;j<valueColumns[i].getPositionCount();j++){
-                            System.out.println("  "+valueColumns[i].getDouble(j)+"  ");
+                    if(tsBlock_rev!=null){
+                        long[] times =tsBlock_rev.getTimeColumn().getTimes();
+                        Column[] valueColumns = tsBlock_rev.getValueColumns();
+                        for(int i=0;i<tsBlock_rev.getPositionCount();i++){
+                            System.out.println("\n时间为:"+times[i]);
+                        }
+                        for(int i=0; i<valueColumns.length; i++){
+                            System.out.println("\n数值为:");
+                            for(int j=0;j<valueColumns[i].getPositionCount();j++){
+                                System.out.println("  "+valueColumns[i].getDouble(j)+"  ");
+                            }
                         }
                     }
                 }

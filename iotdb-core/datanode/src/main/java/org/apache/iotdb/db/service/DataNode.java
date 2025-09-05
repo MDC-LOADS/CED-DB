@@ -199,8 +199,8 @@ public class DataNode extends ServerCommandLine implements DataNodeMBean {
     }
     Thread thriftServer = new Thread(new ThriftServer());
     thriftServer.start();
-    Thread queryTest =new Thread(new ColQueryTest());
-    queryTest.start();
+//    Thread queryTest =new Thread(new ColQueryTest());
+//    queryTest.start();
 
   }
 
@@ -1264,7 +1264,7 @@ public class DataNode extends ServerCommandLine implements DataNodeMBean {
   static class ColQueryTest implements Runnable {
     @Override
     public void run() {
-      for(int i=0;i<10;i++){
+      for(int i=0;i<1;i++){
         try {
           ColQueryExample.main();
           System.out.println("\n---------------------\n");

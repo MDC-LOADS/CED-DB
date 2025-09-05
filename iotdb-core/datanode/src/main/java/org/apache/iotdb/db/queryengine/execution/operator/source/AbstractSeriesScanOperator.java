@@ -44,7 +44,9 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
     @Override
     public TsBlock next() throws Exception {
         if (retainedTsBlock != null) {
-            return getResultFromRetainedTsBlock();
+            TsBlock res = getResultFromRetainedTsBlock();
+            setScanTimestamp(res);
+            return res;
         }
         // we don't get any data in current batch time slice, just return null
         if (resultTsBlockBuilder.isEmpty()) {
@@ -52,13 +54,21 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
         }
         resultTsBlock = resultTsBlockBuilder.build();
         resultTsBlockBuilder.reset();
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        if(queryStateManager.isSingleScan() && queryStateManager.isHasSeriesPath(sourceId.getId())) {
-            long currentEndTime = resultTsBlock.getEndTime();
-            queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
-            queryStateManager.updateScanOffsetByPlanNodeId(sourceId.getId(),currentEndTime);
-        }
+        setScanTimestamp(resultTsBlock);
         return checkTsBlockSizeAndGetResult();
+    }
+
+    private void setScanTimestamp(TsBlock res) {
+        if(QueryStateManager.isInitialized()){
+            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            System.out.println("待设置偏移量 scan，id为"+sourceId.getId());
+            if(queryStateManager.isHasSeriesPath(sourceId.getId())
+                    && !queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
+                long currentEndTime = res.getEndTime();
+                queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
+                System.out.println("设置了偏移量 scan，id为"+sourceId.getId());
+            }
+        }
     }
 
     @Override

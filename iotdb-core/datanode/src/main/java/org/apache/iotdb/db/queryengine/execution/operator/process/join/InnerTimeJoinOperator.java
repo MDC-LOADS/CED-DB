@@ -589,6 +589,26 @@ public class InnerTimeJoinOperator implements ProcessOperator {
             } catch (Exception e) {
                 // Log the exception and handle accordingly
             }
+        } else if (childOperator instanceof AbstractDataSourceOperator) {
+            AbstractDataSourceOperator dataSourceOperator = (AbstractDataSourceOperator) childOperator;
+            // Access the seriesScanUtil field using reflection to get seriesPath
+            try {
+                java.lang.reflect.Field seriesScanUtilField = AbstractDataSourceOperator.class.getDeclaredField("seriesScanUtil");
+                seriesScanUtilField.setAccessible(true);
+                SeriesScanUtil seriesScanUtil = (SeriesScanUtil) seriesScanUtilField.get(dataSourceOperator);
+                if (seriesScanUtil != null) {
+                    // Access the seriesPath field from SeriesScanUtil
+                    java.lang.reflect.Field seriesPathField = SeriesScanUtil.class.getDeclaredField("seriesPath");
+                    seriesPathField.setAccessible(true);
+                    Object seriesPathObj = seriesPathField.get(seriesScanUtil);
+                    if (seriesPathObj != null) {
+                        return seriesPathObj.toString();
+                    }
+                }
+            } catch (Exception e) {
+                // Log the exception and fall back to default naming
+                // Consider adding proper logging here if needed
+            }
         }
         // Fall back to default path naming if SeriesScanUtil is not found or extraction fails
         return "child_" + childIndex + "_" + operatorContext.getPlanNodeId();

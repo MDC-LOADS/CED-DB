@@ -36,6 +36,7 @@ import org.apache.iotdb.db.queryengine.execution.aggregation.AccumulatorFactory;
 import org.apache.iotdb.db.queryengine.execution.aggregation.Aggregator;
 import org.apache.iotdb.db.queryengine.execution.aggregation.slidingwindow.SlidingWindowAggregatorFactory;
 import org.apache.iotdb.db.queryengine.execution.aggregation.timerangeiterator.ITimeRangeIterator;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.driver.DataDriverContext;
 import org.apache.iotdb.db.queryengine.execution.driver.SchemaDriverContext;
 import org.apache.iotdb.db.queryengine.execution.exchange.MPPDataExchangeManager;
@@ -374,6 +375,14 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
                 node.getPlanNodeId(),
                 SeriesScanOperator.class.getSimpleName());
     operatorContext.recordSpecifiedInfo("SeriesPath", seriesPath.getFullPath());
+
+    if(QueryStateManager.isInitialized()){
+      QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        //        System.out.println("设置成功，id为"+operatorContext.getPlanNodeId().getId());
+        queryStateManager.setScanPathExchangeByPlanNodeId(operatorContext.getPlanNodeId().getId(),
+                operatorContext.getDriverContext().getOperatorContexts().size() == 1);
+    }
+
     SeriesScanOperator seriesScanOperator =
         new SeriesScanOperator(
             operatorContext,

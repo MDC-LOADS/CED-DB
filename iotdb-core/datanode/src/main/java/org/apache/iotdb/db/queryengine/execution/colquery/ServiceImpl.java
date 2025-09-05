@@ -10,6 +10,7 @@ import org.apache.thrift.transport.layered.TFramedTransport;
 import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.read.common.block.TsBlock;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,16 +65,60 @@ public class ServiceImpl implements C2EColService.Iface{
 //        }
 
         //for test
+//        AckMessageTestForAnsMessage(cloudFragmentId);
+//        AckMessageTestForAnsMessageWithSingleScan(cloudFragmentId);
+//        AckMessageTestForAnsMessageWithLeftJoin(cloudFragmentId);
+    }
+
+    public void AckMessageTestForAnsMessage(int cloudFragmentId) throws TException {
+        //for test
         Map<String,ScanInfo> map = new HashMap<>();
         QueryStateManager queryStateManager = QueryStateManager.getInstance();
         queryStateManager.setCloudFragmentId(cloudFragmentId);
         queryStateManager.getAndAddEdgeFragmentId();
         queryStateManager.createAndSetSourceHandle();
         queryStateManager.getStateMachine().transitionToPreColQuery();
-        map.put("4", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t2",true,false,true));
-        map.put("5", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t1",true,false,true));
+//        map.put("4", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t2",true,false,true));
+//        map.put("5", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t1",true,false,true));
+        map.put("7",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t4",true,false,true));
+        map.put("8",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t3",true,false,true));
+        map.put("9",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t5",true,false,true));
+        map.put("10",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t2",true,false,true));
+        map.put("11",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t1",true,false,true));
+
         callAnsMessage(queryStateManager.getEdgeFragmentId(), map);
         System.out.println("\nACKMessage success");
+        queryStateManager.getStateMachine().transitionToColQuery();
+    }
+
+    public void AckMessageTestForAnsMessageWithLeftJoin(int cloudFragmentId) throws TException {
+        //for test
+        Map<String,ScanInfo> map = new HashMap<>();
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        queryStateManager.setCloudFragmentId(cloudFragmentId);
+        queryStateManager.getAndAddEdgeFragmentId();
+        queryStateManager.createAndSetSourceHandle();
+        queryStateManager.getStateMachine().transitionToPreColQuery();
+        map.put("13", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t2",true,true,false));
+        map.put("14", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t1",true,true,false));
+        map.put("15", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t4",true,false,true));
+        map.put("16", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t3",true,false,true));
+        TimeColumn timeColumn = new TimeColumn();
+        List<Column> valueColumns = new ArrayList<>();
+        callAnsMessageWithLeftOuterJoin(queryStateManager.getEdgeFragmentId(), map,timeColumn,valueColumns,false);
+        System.out.println("\nACKMessage success");
+        queryStateManager.getStateMachine().transitionToColQuery();
+    }
+
+    public void AckMessageTestForAnsMessageWithSingleScan(int cloudFragmentId) throws TException {
+        //for test
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        queryStateManager.setCloudFragmentId(cloudFragmentId);
+        queryStateManager.getAndAddEdgeFragmentId();
+        queryStateManager.createAndSetSourceHandle();
+        queryStateManager.getStateMachine().transitionToPreColQuery();
+        callAnsMessageWithSingleScan(queryStateManager.getEdgeFragmentId(), "1",1756819812635L,"root.ln.wf01.wt02.t1",false);
+        System.out.println("\nACKMessage with Single Scan success");
         queryStateManager.getStateMachine().transitionToColQuery();
     }
 
@@ -82,7 +127,7 @@ public class ServiceImpl implements C2EColService.Iface{
         QueryStateManager queryStateManager=QueryStateManager.getInstance();
         //更新全部算子状态
         scanInfoMap.forEach((key, value) -> {
-            queryStateManager.setSeriesPathAndPlanNodeId(value.getSeriesPath(),key);
+            queryStateManager.setSeriesPathAndPlanNodeId(key,value.getSeriesPath());
             QueryStateManager.ScanStates scanStates = ScanInfoConverter.convertToScanStates(value);
             queryStateManager.setScanStates(value.getSeriesPath(),scanStates);
         });
@@ -112,28 +157,56 @@ public class ServiceImpl implements C2EColService.Iface{
         queryStateManager.setLeftOuterJoinCache(cache);
         queryStateManager.setIsRightCache(isRightCache);
         queryStateManager.getStateMachine().transitionToPreClosed();
-        notifyAll();
+
+        //test
+        System.out.println("\nColQueryClose success:");
+        for (String planNodeId : queryStateManager.getAllScanPlanNodeIdList()) {
+            System.out.println("planNodeId:"+planNodeId);
+        }
+        for (String seriesPath: queryStateManager.getAllScanPathList()) {
+            System.out.println("seriesPath:"+seriesPath);
+            QueryStateManager.ScanStates scanStates =queryStateManager.getScanStates(seriesPath);
+            System.out.println("scanStates:"+scanStates);
+        }
+        if(queryStateManager.getLeftOuterJoinCache()!=null){
+            TsBlock cache1 = queryStateManager.getLeftOuterJoinCache();
+            System.out.println("leftOuterJoinCache-is right?:"+queryStateManager.getIsRightCache());
+            System.out.println("\nleftOuterJoinCache:");
+            long[] times =cache1.getTimeColumn().getTimes();
+            org.apache.tsfile.block.column.Column[] valueColumns1 = cache1.getValueColumns();
+            for(int i=0;i<cache1.getPositionCount();i++){
+                System.out.println("\n时间为:"+times[i]);
+            }
+            for(int i=0; i<valueColumns1.length; i++){
+                System.out.println("\n数值为:");
+                for(int j=0;j<valueColumns1[i].getPositionCount();j++){
+                    System.out.println("  "+valueColumns1[i].getDouble(j)+"  ");
+                }
+            }
+        }else {
+            System.out.println("\nleftOuterJoinCache: null");
+        }
         //TODO:清除全部中间状态，恢复查询
-        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-        boolean hasFullOuterJoin =false;
-        boolean hasInnerJoin =false;
-        for(Map.Entry<String, ScanInfo> entry : scanInfoMap.entrySet()){
-            ScanInfo value = entry.getValue();
-            if(value.isFullOuterJoin){
-                hasFullOuterJoin = true;
-            }
-            if (value.isInnerJoin) {
-                hasInnerJoin = true;
-            }
-        }
-        if(hasFullOuterJoin){
-            planNodeIds.add("FullOuterJoin");
-        }
-        if (hasInnerJoin){
-            planNodeIds.add("InnerJoin");
-        }
-        planNodeIds.add("LeftOuterJoin");
-        queryStateManager.setOperatorClearManager(planNodeIds);
+//        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+//        boolean hasFullOuterJoin =false;
+//        boolean hasInnerJoin =false;
+//        for(Map.Entry<String, ScanInfo> entry : scanInfoMap.entrySet()){
+//            ScanInfo value = entry.getValue();
+//            if(value.isFullOuterJoin){
+//                hasFullOuterJoin = true;
+//            }
+//            if (value.isInnerJoin) {
+//                hasInnerJoin = true;
+//            }
+//        }
+//        if(hasFullOuterJoin){
+//            planNodeIds.add("FullOuterJoin");
+//        }
+//        if (hasInnerJoin){
+//            planNodeIds.add("InnerJoin");
+//        }
+//        planNodeIds.add("LeftOuterJoin");
+//        queryStateManager.setOperatorClearManager(planNodeIds);
     }
 
     @Override
@@ -189,11 +262,10 @@ public class ServiceImpl implements C2EColService.Iface{
         queryStateManager.setScanStates(seriesPath,new QueryStateManager.ScanStates(0,offset,isCloudEqual,false,false));
         queryStateManager.setSingleScan(true);
         queryStateManager.getStateMachine().transitionToPreClosed();
-        notifyAll();
 
         //TODO:清除全部中间状态，恢复查询
-        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-        queryStateManager.setOperatorClearManager(planNodeIds);
+//        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+//        queryStateManager.setOperatorClearManager(planNodeIds);
 
     }
 

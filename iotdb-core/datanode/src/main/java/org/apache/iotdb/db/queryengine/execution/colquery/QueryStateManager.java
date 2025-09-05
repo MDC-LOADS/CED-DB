@@ -52,9 +52,11 @@ public class QueryStateManager {
 
   private final ConcurrentHashMap<String, ScanStates> scanStatesMap = new ConcurrentHashMap<>();//SeriesPath定位scan算子的状态
 
-  private final ConcurrentHashMap<String, String> scanPathsMap =new ConcurrentHashMap<>();//PlanNodeId和SeriesPath对应
+  private final ConcurrentHashMap<String, String> scanPathsMap =new ConcurrentHashMap<>();//PlanNodeId->SeriesPath对应
 
-  private final ConcurrentHashMap<String, String> scanPlanNodeIdsMap =new ConcurrentHashMap<>();//PlanNodeId和SeriesPath一一对应
+  private final ConcurrentHashMap<String, String> scanPlanNodeIdsMap =new ConcurrentHashMap<>();//SeriesPath->PlanNodeId一一对应
+
+  private final ConcurrentHashMap<String, Boolean> scanExchangeMap = new ConcurrentHashMap<>();//seriesPath->ExchangeNode or seriesScan
 
   private volatile boolean hasLeftOuterJoin = false;//查询是否含有左外连接算子
 
@@ -482,6 +484,41 @@ public class QueryStateManager {
   public void updateScanFullOuterJoinByPlanNodeId(String planNodeId, boolean fullOuterJoin) {
     String scanPath = scanPathsMap.get(planNodeId);
     scanStatesMap.computeIfAbsent(scanPath, k -> new ScanStates()).setFullOuterJoin(fullOuterJoin);
+  }
+
+  public  void setScanPathExchange(String seriesPath,boolean isExchange) {
+    scanExchangeMap.put(seriesPath,isExchange);
+  }
+
+  public void setScanPathExchangeByPlanNodeId(String planNodeId,boolean isExchange) {
+    String scanPath = scanPathsMap.get(planNodeId);
+    if(scanPath!=null) {
+      scanExchangeMap.put(scanPath,isExchange);
+    }else {
+      System.out.println("scanPath is null");
+    }
+  }
+
+  public boolean isScanPathExchange(String seriesPath) {
+    if(scanExchangeMap.get(seriesPath) == null) {
+      System.out.println("isScanPathExchange:"+seriesPath+"is null!");
+      return false;
+    }
+    return scanExchangeMap.get(seriesPath);
+  }
+
+  public boolean isScanPathExchangeByPlanNodeId(String planNodeId) {
+    String scanPath = scanPathsMap.get(planNodeId);
+    if(scanPath!=null) {
+      System.out.println("bug位置，当前获取到的是:"+planNodeId);
+      if(scanExchangeMap.get(scanPath)!=null) {
+        return scanExchangeMap.get(scanPath);
+      }
+      System.out.println("scan Exchange为空:"+scanPath+"is null!");
+      return  false;
+    }
+    System.out.println("scanPath is null");
+    return false;
   }
 
   public void setOperatorClearManager(List<String> planNodeIds) {

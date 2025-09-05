@@ -52,6 +52,7 @@ public class ResourceMonitor {
         } catch (TException x) {
             x.printStackTrace();
         }
+        System.out.println("协同查询状态机变为启动啦");
         queryStateManager.getStateMachine().transitionToStart();
 
     }

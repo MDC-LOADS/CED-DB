@@ -376,12 +376,6 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
                 SeriesScanOperator.class.getSimpleName());
     operatorContext.recordSpecifiedInfo("SeriesPath", seriesPath.getFullPath());
 
-    if(QueryStateManager.isInitialized()){
-      QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        //        System.out.println("设置成功，id为"+operatorContext.getPlanNodeId().getId());
-        queryStateManager.setScanPathExchangeByPlanNodeId(operatorContext.getPlanNodeId().getId(),
-                operatorContext.getDriverContext().getOperatorContexts().size() == 1);
-    }
 
     SeriesScanOperator seriesScanOperator =
         new SeriesScanOperator(

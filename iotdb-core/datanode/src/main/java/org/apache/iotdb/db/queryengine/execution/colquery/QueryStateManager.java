@@ -679,22 +679,92 @@ public class QueryStateManager {
     StringBuilder sb = new StringBuilder();
     sb.append("QueryStateManager Summary:\n");
 
+    // We keep the whole dump under read lock to keep a consistent snapshot
     lock.readLock().lock();
     try {
+      // Basic query info
+      sb.append("  SQL: ").append(sql == null ? "<null>" : sql).append("\n");
+      sb.append("  QueryId: ")
+          .append(colQueryId == null ? "<null>" : colQueryId.getId())
+          .append("\n");
       sb.append("  StateMachine: ")
-          .append(stateMachine != null ? stateMachine.getState() : "null")
+          .append(stateMachine != null ? stateMachine.getState() : "<null>")
           .append("\n");
 
-      sb.append("  Scan States (").append(scanStatesMap.size()).append(" entries):\n");
-      scanStatesMap.forEach(
-          (path, states) -> {
-            sb.append("    ").append(path).append(": ").append(states).append("\n");
-          });
+      // Scan states: print by PlanNodeId if available, otherwise list orphans by seriesPath
+      sb.append("  Scan States (by PlanNodeId):\n");
+      if (scanPathsMap.isEmpty() && scanStatesMap.isEmpty()) {
+        sb.append("    <empty>\n");
+      } else {
+        // Primary view: PlanNodeId -> seriesPath -> states + exchange
+        for (java.util.Map.Entry<String, String> e : scanPathsMap.entrySet()) {
+          final String planNodeId = e.getKey();
+          final String seriesPath = e.getValue();
+          final ScanStates states = scanStatesMap.get(seriesPath);
+          final Boolean isExchange = scanExchangeMap.get(seriesPath);
+          sb.append("    PlanNodeId: ").append(planNodeId).append("\n");
+          sb.append("      seriesPath: ").append(seriesPath == null ? "<null>" : seriesPath).append("\n");
+          sb.append("      states: ").append(states == null ? "<null>" : states.toString()).append("\n");
+          sb.append("      isExchange: ").append(isExchange == null ? "<null>" : isExchange.toString()).append("\n");
+        }
 
+        // Orphans: seriesPath present in states map but not mapped to any PlanNodeId
+        for (java.util.Map.Entry<String, ScanStates> e : scanStatesMap.entrySet()) {
+          final String seriesPath = e.getKey();
+          if (!scanPlanNodeIdsMap.containsKey(seriesPath)) {
+            final ScanStates states = e.getValue();
+            final Boolean isExchange = scanExchangeMap.get(seriesPath);
+            sb.append("    <orphan> seriesPath: ").append(seriesPath).append("\n");
+            sb.append("      states: ").append(states == null ? "<null>" : states.toString()).append("\n");
+            sb.append("      isExchange: ").append(isExchange == null ? "<null>" : isExchange.toString()).append("\n");
+          }
+        }
+      }
+
+      // Left outer join cache dump (assume value columns are double type as requested)
       sb.append("  HasLeftOuterJoin: ").append(hasLeftOuterJoin).append("\n");
-      sb.append("  LeftOuterJoinCache: ")
-          .append(leftOuterJoinCache != null ? "present" : "null")
-          .append("\n");
+      if (leftOuterJoinCache == null) {
+        sb.append("  LeftOuterJoinCache: <null>\n");
+      } else {
+        try {
+          sb.append("  LeftOuterJoinCache: present\n");
+          final int rowCount = leftOuterJoinCache.getPositionCount();
+          final org.apache.tsfile.block.column.Column[] valueColumns = leftOuterJoinCache.getValueColumns();
+          final int colCount = valueColumns == null ? 0 : valueColumns.length;
+          sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
+
+          // time column
+          long[] times = leftOuterJoinCache.getTimeColumn() == null ? null : leftOuterJoinCache.getTimeColumn().getTimes();
+          if (times != null) {
+            sb.append("    time:");
+            for (int i = 0; i < rowCount; i++) {
+              sb.append(i == 0 ? " [" : ", ").append(times[i]);
+            }
+            sb.append("]\n");
+          } else {
+            sb.append("    time: <null>\n");
+          }
+
+          // values (assume double)
+          for (int c = 0; c < colCount; c++) {
+            sb.append("    col").append(c).append(":");
+            org.apache.tsfile.block.column.Column col = valueColumns[c];
+            if (col == null) {
+              sb.append(" <null>\n");
+              continue;
+            }
+            sb.append(" [");
+            for (int r = 0; r < rowCount; r++) {
+              if (r > 0) sb.append(", ");
+              // as requested, assume double type
+              sb.append(col.getDouble(r));
+            }
+            sb.append("]\n");
+          }
+        } catch (Throwable t) {
+          sb.append("  LeftOuterJoinCache: <error dumping cache> ").append(t.getMessage()).append("\n");
+        }
+      }
     } finally {
       lock.readLock().unlock();
     }

@@ -22,47 +22,53 @@ public class ServiceImpl implements C2EColService.Iface{
     @Override
     public void ACKMessage(int cloudFragmentId) throws TException {
 
-//        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-//        queryStateManager.getStateMachine().transitionToPreColQuery();//切换至同步索引
-//        queryStateManager.setCloudFragmentId(cloudFragmentId);
-//        int edgeFragmentId = queryStateManager.getAndAddEdgeFragmentId();
-//        queryStateManager.createAndSetSourceHandle();
-//        try {
-//            while (queryStateManager.getStateMachine().getState()!= ColQueryState.COL_QUERY){
-//                System.out.println("\n等待IdentitySink中");
-//                Thread.sleep(10);
-//            }
-//            System.out.println("\n等待IdentitySink完成");
-//        }catch (Exception e){
-//            System.out.println("\n等待IdentitySink失败");
-//        }
-//        if(queryStateManager.isSingleScan()){
-//            String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
-//            QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
-//            long offset = scanStates.getOffset();
-//            String seriesPath = queryStateManager.getSeriesPath(planNodeId);
-//            callAnsMessageWithSingleScan(edgeFragmentId,planNodeId,offset,seriesPath,false);
-//        }else {
-//            List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
-//            List<String> seriesPaths = queryStateManager.getAllScanPathList();
-//            List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-//            int i=0;
-//            Map<String, ScanInfo> scanInfoMap = new HashMap<>();
-//            for(QueryStateManager.ScanStates scanState:scanStates)
-//            {
-//                ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
-//                scanInfoMap.put(planNodeIds.get(i),scanInfo);
-//                i++;
-//            }
-//            if(queryStateManager.hasLeftOuterJoin()){
-//                TsBlock cache = queryStateManager.getLeftOuterJoinCache();
-//                ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
-//                callAnsMessageWithLeftOuterJoin(edgeFragmentId,scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
-//            }else{
-//                callAnsMessage(edgeFragmentId,scanInfoMap);
-//            }
-//
-//        }
+        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        queryStateManager.getStateMachine().transitionToPreColQuery();//切换至同步索引
+        queryStateManager.setCloudFragmentId(cloudFragmentId);
+        int edgeFragmentId = queryStateManager.getAndAddEdgeFragmentId();
+        queryStateManager.createAndSetSourceHandle();
+        try {
+            while (!queryStateManager.isCanSendOffset()){
+                System.out.println("\n等待IdentitySink中");
+                Thread.sleep(10);
+            }
+            System.out.println("\n等待IdentitySink完成");
+        }catch (Exception e){
+            System.out.println("\n等待IdentitySink失败");
+        }
+        queryStateManager.setCanSendOffset(false);
+        if(queryStateManager.isSingleScan()){
+            String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
+            QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
+            long offset = scanStates.getOffset();
+            String seriesPath = queryStateManager.getSeriesPath(planNodeId);
+            callAnsMessageWithSingleScan(edgeFragmentId,planNodeId,offset,seriesPath,false);
+            queryStateManager.getStateMachine().transitionToColQuery();
+        }else {
+            List<QueryStateManager.ScanStates>  scanStates = queryStateManager.getAllScanStatesList();
+            List<String> seriesPaths = queryStateManager.getAllScanPathList();
+            List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+            int i=0;
+            Map<String, ScanInfo> scanInfoMap = new HashMap<>();
+            for(QueryStateManager.ScanStates scanState:scanStates)
+            {
+                ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
+                scanInfoMap.put(planNodeIds.get(i),scanInfo);
+                i++;
+            }
+            if(queryStateManager.hasLeftOuterJoin()){
+                TsBlock cache = queryStateManager.getLeftOuterJoinCache();
+                ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
+                callAnsMessageWithLeftOuterJoin(edgeFragmentId,scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
+                queryStateManager.getStateMachine().transitionToColQuery();
+
+            }else{
+
+                callAnsMessage(edgeFragmentId,scanInfoMap);
+                queryStateManager.getStateMachine().transitionToColQuery();
+            }
+
+        }
 
         //for test
 //        AckMessageTestForAnsMessage(cloudFragmentId);
@@ -125,6 +131,14 @@ public class ServiceImpl implements C2EColService.Iface{
     @Override
     public void ColQueryCloseWithLeftOuterJoin(Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumn, List<Column> valueColumns, boolean isRightCache) throws TException {
         QueryStateManager queryStateManager=QueryStateManager.getInstance();
+        while(!queryStateManager.getSourceHandle().isFinished()){
+            try{
+                Thread.sleep(10);
+                System.out.println("等待关闭SInk channel");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
         //更新全部算子状态
         scanInfoMap.forEach((key, value) -> {
             queryStateManager.setSeriesPathAndPlanNodeId(key,value.getSeriesPath());
@@ -187,31 +201,39 @@ public class ServiceImpl implements C2EColService.Iface{
             System.out.println("\nleftOuterJoinCache: null");
         }
         //TODO:清除全部中间状态，恢复查询
-//        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-//        boolean hasFullOuterJoin =false;
-//        boolean hasInnerJoin =false;
-//        for(Map.Entry<String, ScanInfo> entry : scanInfoMap.entrySet()){
-//            ScanInfo value = entry.getValue();
-//            if(value.isFullOuterJoin){
-//                hasFullOuterJoin = true;
-//            }
-//            if (value.isInnerJoin) {
-//                hasInnerJoin = true;
-//            }
-//        }
-//        if(hasFullOuterJoin){
-//            planNodeIds.add("FullOuterJoin");
-//        }
-//        if (hasInnerJoin){
-//            planNodeIds.add("InnerJoin");
-//        }
-//        planNodeIds.add("LeftOuterJoin");
-//        queryStateManager.setOperatorClearManager(planNodeIds);
+        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+        boolean hasFullOuterJoin =false;
+        boolean hasInnerJoin =false;
+        for(Map.Entry<String, ScanInfo> entry : scanInfoMap.entrySet()){
+            ScanInfo value = entry.getValue();
+            if(value.isFullOuterJoin){
+                hasFullOuterJoin = true;
+            }
+            if (value.isInnerJoin) {
+                hasInnerJoin = true;
+            }
+        }
+        if(hasFullOuterJoin){
+            planNodeIds.add("FullOuterJoin");
+        }
+        if (hasInnerJoin){
+            planNodeIds.add("InnerJoin");
+        }
+        planNodeIds.add("LeftOuterJoin");
+        queryStateManager.setOperatorClearManager(planNodeIds);
     }
 
     @Override
     public void ColQueryClose(Map<String, ScanInfo> scanInfoMap) throws TException {
         QueryStateManager queryStateManager=QueryStateManager.getInstance();
+        while(!queryStateManager.getSourceHandle().isFinished()){
+            try{
+                Thread.sleep(10);
+                System.out.println("等待关闭SInk channel");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
         //更新全部算子状态
         scanInfoMap.forEach((key, value) -> {
             queryStateManager.setSeriesPathAndPlanNodeId(key,value.getSeriesPath());
@@ -233,30 +255,38 @@ public class ServiceImpl implements C2EColService.Iface{
         //test end
 
         //TODO:清除全部中间状态，恢复查询
-//        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-//        boolean hasFullOuterJoin =false;
-//        boolean hasInnerJoin =false;
-//        for(Map.Entry<String, ScanInfo> entry : scanInfoMap.entrySet()){
-//            ScanInfo value = entry.getValue();
-//            if(value.isFullOuterJoin){
-//                hasFullOuterJoin = true;
-//            }
-//            if (value.isInnerJoin) {
-//                hasInnerJoin = true;
-//            }
-//        }
-//        if(hasFullOuterJoin){
-//            planNodeIds.add("FullOuterJoin");
-//        }
-//        if (hasInnerJoin){
-//            planNodeIds.add("InnerJoin");
-//        }
-//        queryStateManager.setOperatorClearManager(planNodeIds);
+        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+        boolean hasFullOuterJoin =false;
+        boolean hasInnerJoin =false;
+        for(Map.Entry<String, ScanInfo> entry : scanInfoMap.entrySet()){
+            ScanInfo value = entry.getValue();
+            if(value.isFullOuterJoin){
+                hasFullOuterJoin = true;
+            }
+            if (value.isInnerJoin) {
+                hasInnerJoin = true;
+            }
+        }
+        if(hasFullOuterJoin){
+            planNodeIds.add("FullOuterJoin");
+        }
+        if (hasInnerJoin){
+            planNodeIds.add("InnerJoin");
+        }
+        queryStateManager.setOperatorClearManager(planNodeIds);
     }
 
     @Override
     public void ColQueryCloseWithSingleScan(String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
         QueryStateManager queryStateManager=QueryStateManager.getInstance();
+        while(!queryStateManager.getSourceHandle().isFinished()){
+            try{
+                Thread.sleep(10);
+                System.out.println("等待关闭SInk channel");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
         //更新全部算子状态
         queryStateManager.setSeriesPathAndPlanNodeId(planNodeId,seriesPath);
         queryStateManager.setScanStates(seriesPath,new QueryStateManager.ScanStates(0,offset,isCloudEqual,false,false));
@@ -264,8 +294,8 @@ public class ServiceImpl implements C2EColService.Iface{
         queryStateManager.getStateMachine().transitionToPreClosed();
 
         //TODO:清除全部中间状态，恢复查询
-//        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-//        queryStateManager.setOperatorClearManager(planNodeIds);
+        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+        queryStateManager.setOperatorClearManager(planNodeIds);
 
     }
 

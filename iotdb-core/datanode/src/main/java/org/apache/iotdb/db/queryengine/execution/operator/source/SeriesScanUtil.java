@@ -83,7 +83,7 @@ public class SeriesScanUtil implements Accountable {
   // inner class of SeriesReader for order purpose
   private final TimeOrderUtils orderUtils;
 
-  private QueryDataSource dataSource;
+  public QueryDataSource dataSource;
 
   // file index
   private int curSeqFileIndex;
@@ -167,6 +167,52 @@ public class SeriesScanUtil implements Accountable {
         new PriorityQueue<>(
             orderUtils.comparingLong(
                 versionPageReader -> orderUtils.getOrderTime(versionPageReader.getStatistics())));
+  }
+
+  public SeriesScanUtil(
+          PartialPath seriesPath,
+          Ordering scanOrder,
+          SeriesScanOptions scanOptions,
+          FragmentInstanceContext context,
+          QueryDataSource dataSource) {
+    this.dataSource = dataSource;
+    this.seriesPath = seriesPath;
+    this.deviceID = seriesPath.getIDeviceID();
+    this.dataType = seriesPath.getSeriesType();
+
+    this.scanOptions = scanOptions;
+    this.paginationController = scanOptions.getPaginationController();
+
+    this.context = context;
+    this.scanOrder = scanOrder;
+    if (scanOrder.isAscending()) {
+      this.orderUtils = new AscTimeOrderUtils();
+      this.mergeReader = getPriorityMergeReader();
+    } else {
+      this.orderUtils = new DescTimeOrderUtils();
+      this.mergeReader = getDescPriorityMergeReader();
+    }
+    this.mergeReader.setMemoryReservationManager(context.getMemoryReservationContext());
+
+    // init TimeSeriesMetadata materializer
+    this.seqTimeSeriesMetadata = new LinkedList<>();
+    this.unSeqTimeSeriesMetadata =
+            new PriorityQueue<>(
+                    orderUtils.comparingLong(
+                            timeSeriesMetadata -> orderUtils.getOrderTime(timeSeriesMetadata.getStatistics())));
+
+    // init ChunkMetadata materializer
+    this.cachedChunkMetadata =
+            new PriorityQueue<>(
+                    orderUtils.comparingLong(
+                            chunkMetadata -> orderUtils.getOrderTime(chunkMetadata.getStatistics())));
+
+    // init PageReader materializer
+    this.seqPageReaders = new LinkedList<>();
+    this.unSeqPageReaders =
+            new PriorityQueue<>(
+                    orderUtils.comparingLong(
+                            versionPageReader -> orderUtils.getOrderTime(versionPageReader.getStatistics())));
   }
 
   /**

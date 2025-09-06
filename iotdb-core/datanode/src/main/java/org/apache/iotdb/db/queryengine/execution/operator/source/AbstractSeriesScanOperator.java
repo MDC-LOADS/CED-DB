@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.queryengine.execution.operator.source;
 
 import org.apache.iotdb.commons.path.PartialPath;
+import org.apache.iotdb.db.queryengine.execution.QueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
@@ -27,6 +28,7 @@ import org.apache.iotdb.db.queryengine.execution.exchange.source.LocalSourceHand
 import org.apache.iotdb.db.queryengine.execution.fragment.FragmentInstanceContext;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.parameter.SeriesScanOptions;
 import org.apache.iotdb.db.queryengine.plan.statement.component.Ordering;
+import org.apache.iotdb.db.storageengine.dataregion.read.QueryDataSource;
 import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.read.common.block.TsBlock;
 import org.apache.tsfile.read.filter.basic.Filter;
@@ -46,6 +48,7 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
         if (retainedTsBlock != null) {
             TsBlock res = getResultFromRetainedTsBlock();
             setScanTimestamp(res);
+            System.out.println("最终scan返回的TsBlock-retained"+showTsBlock(res));
             return res;
         }
         // we don't get any data in current batch time slice, just return null
@@ -55,7 +58,10 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
         resultTsBlock = resultTsBlockBuilder.build();
         resultTsBlockBuilder.reset();
         setScanTimestamp(resultTsBlock);
-        return checkTsBlockSizeAndGetResult();
+        System.out.println(showTsBlock(resultTsBlock));
+        TsBlock ans = checkTsBlockSizeAndGetResult();
+        System.out.println("最终scan返回的TsBlock"+showTsBlock(ans));
+        return ans;
     }
 
     private void setScanTimestamp(TsBlock res) {
@@ -82,9 +88,15 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
         if(QueryStateManager.isInitialized()){
             QueryStateManager queryStateManager = QueryStateManager.getInstance();
             while (queryStateManager.getStateMachine().getState()==ColQueryState.COL_QUERY){
-                wait();
+                try {
+                    Thread.sleep(10);
+                }catch (InterruptedException e){
+                    e.printStackTrace();
+                }
             }
             if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
+                retainedTsBlock = null;
+                startOffset = 0;
                 //清空管道
                 ISourceHandle sourceHandle=queryStateManager.getScanSourceHandle(operatorContext.getPlanNodeId().getId());
                 if(sourceHandle instanceof LocalSourceHandle  && !queryStateManager.isSingleScan()) {
@@ -95,8 +107,10 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
                 PartialPath seriesPath = this.seriesScanUtil.seriesPath;
                 Ordering scanOrder=this.seriesScanUtil.scanOrder;
                 SeriesScanOptions oldScanOptions = this.seriesScanUtil.scanOptions;
+                QueryDataSource dataSource =this.seriesScanUtil.dataSource;
                 Filter newOffsetFilter;
                 QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
+                System.out.println("设置新查询的filter的offet为："+scanStates.getOffset());
                 if(scanStates.isCouldEqual()){
                     newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());
                 }else {
@@ -116,13 +130,14 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
                 SeriesScanOptions newScanOptions = builder
                         .withGlobalTimeFilter(combinedFilter)
                         .withPushDownFilter(oldScanOptions.getPushDownFilter())
-                        .withPushDownLimit(oldScanOptions.pushDownLimit)
-                        .withPushDownOffset(oldScanOptions.pushDownOffset)
                         .build();
+                if(oldScanOptions.pushDownLimit!=0){
+                    System.out.println("pushDownLimit不为0:"+oldScanOptions.pushDownLimit);
+                }
                 builder.withAllSensors(oldScanOptions.getAllSensors());
                 newScanOptions = builder.build();
                 FragmentInstanceContext context = this.seriesScanUtil.context;
-                this.seriesScanUtil = new SeriesScanUtil(seriesPath, scanOrder, newScanOptions, context);
+                this.seriesScanUtil = new SeriesScanUtil(seriesPath, scanOrder, newScanOptions, context,dataSource);
                 queryStateManager.getOperatorClearManager().clearOperator(operatorContext.getPlanNodeId().getId());
             }
         }
@@ -218,5 +233,51 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
     @Override
     public long calculateRetainedSizeAfterCallingNext() {
         return calculateMaxPeekMemoryWithCounter() - calculateMaxReturnSize();
+    }
+
+    private String showTsBlock(TsBlock tsBlock) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n！！！当前Scan的TsBlock为:\n");
+        // We keep the whole dump under read lock to keep a consistent snapshot
+//        lock.readLock().lock();
+        try {
+            sb.append("  Identity Sink TsBlock: present\n");
+            final int rowCount = tsBlock.getPositionCount();
+            final org.apache.tsfile.block.column.Column[] valueColumns = tsBlock.getValueColumns();
+            final int colCount = valueColumns == null ? 0 : valueColumns.length;
+            sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
+
+            // time column
+            long[] times = tsBlock.getTimeColumn() == null ? null : tsBlock.getTimeColumn().getTimes();
+            if (times != null) {
+                sb.append("    time:");
+                for (int i = 0; i < rowCount; i++) {
+                    sb.append(i == 0 ? " [" : ", ").append(times[i]);
+                }
+                sb.append("]\n");
+            } else {
+                sb.append("    time: <null>\n");
+            }
+
+            // values (assume double)
+            for (int c = 0; c < colCount; c++) {
+                sb.append("    col").append(c).append(":");
+                org.apache.tsfile.block.column.Column col = valueColumns[c];
+                if (col == null) {
+                    sb.append(" <null>\n");
+                    continue;
+                }
+                sb.append(" [");
+                for (int r = 0; r < rowCount; r++) {
+                    if (r > 0) sb.append(", ");
+                    // as requested, assume double type
+                    sb.append(col.getDouble(r));
+                }
+                sb.append("]\n");
+            }
+        } catch (Throwable t) {
+            sb.append("  LeftOuterJoinCache: <error dumping cache> ").append(t.getMessage()).append("\n");
+        }
+        return sb.toString();
     }
 }

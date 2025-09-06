@@ -255,25 +255,25 @@ public class ServiceImpl implements C2EColService.Iface{
         //test end
 
         //TODO:清除全部中间状态，恢复查询
-        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-        boolean hasFullOuterJoin =false;
-        boolean hasInnerJoin =false;
-        for(Map.Entry<String, ScanInfo> entry : scanInfoMap.entrySet()){
-            ScanInfo value = entry.getValue();
-            if(value.isFullOuterJoin){
-                hasFullOuterJoin = true;
-            }
-            if (value.isInnerJoin) {
-                hasInnerJoin = true;
-            }
-        }
-        if(hasFullOuterJoin){
-            planNodeIds.add("FullOuterJoin");
-        }
-        if (hasInnerJoin){
-            planNodeIds.add("InnerJoin");
-        }
-        queryStateManager.setOperatorClearManager(planNodeIds);
+//        List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
+//        boolean hasFullOuterJoin =false;
+//        boolean hasInnerJoin =false;
+//        for(Map.Entry<String, ScanInfo> entry : scanInfoMap.entrySet()){
+//            ScanInfo value = entry.getValue();
+//            if(value.isFullOuterJoin){
+//                hasFullOuterJoin = true;
+//            }
+//            if (value.isInnerJoin) {
+//                hasInnerJoin = true;
+//            }
+//        }
+//        if(hasFullOuterJoin){
+//            planNodeIds.add("FullOuterJoin");
+//        }
+//        if (hasInnerJoin){
+//            planNodeIds.add("InnerJoin");
+//        }
+//        queryStateManager.setOperatorClearManager(planNodeIds);
     }
 
     @Override
@@ -288,11 +288,15 @@ public class ServiceImpl implements C2EColService.Iface{
             }
         }
         //更新全部算子状态
-        queryStateManager.setSeriesPathAndPlanNodeId(planNodeId,seriesPath);
-        queryStateManager.setScanStates(seriesPath,new QueryStateManager.ScanStates(0,offset,isCloudEqual,false,false));
+//        queryStateManager.setSeriesPathAndPlanNodeId(planNodeId,seriesPath);
+//        queryStateManager.setScanStates(seriesPath,new QueryStateManager.ScanStates(0,offset,isCloudEqual,false,false));
+        System.out.println("获取到的offset为："+offset);
+        queryStateManager.updateScanOffsetByPlanNodeId(planNodeId,offset);
+        queryStateManager.updateScanCouldEqualByPlanNodeId(planNodeId,isCloudEqual);
+        System.out.println("设置新的offset以及数据信息：");
+        System.out.println("快速查看"+queryStateManager.getStateSummary());
         queryStateManager.setSingleScan(true);
         queryStateManager.getStateMachine().transitionToPreClosed();
-
         //TODO:清除全部中间状态，恢复查询
         List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
         queryStateManager.setOperatorClearManager(planNodeIds);

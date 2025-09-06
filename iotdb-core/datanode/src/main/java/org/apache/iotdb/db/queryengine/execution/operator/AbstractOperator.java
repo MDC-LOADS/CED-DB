@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.db.queryengine.execution.operator;
 
+import org.apache.iotdb.db.queryengine.execution.operator.source.AbstractSeriesScanOperator;
 import org.apache.tsfile.common.conf.TSFileDescriptor;
 import org.apache.tsfile.read.common.block.TsBlock;
 import org.slf4j.Logger;
@@ -82,22 +83,75 @@ public abstract class AbstractOperator implements Operator {
     if (maxTupleSizeOfTsBlock == -1) {
       initializeMaxTsBlockLength(retainedTsBlock);
     }
+    System.out.println("核对信息：");
+    System.out.println("size:"+retainedTsBlock.getPositionCount());
+    System.out.println("startOffset:"+startOffset);
+    System.out.println("maxTupleSizeOfTsBlock:"+maxTupleSizeOfTsBlock);
     if (retainedTsBlock.getPositionCount() - startOffset <= maxTupleSizeOfTsBlock) {
       res = retainedTsBlock.subTsBlock(startOffset);
       retainedTsBlock = null;
       startOffset = 0;
+      System.out.println("if");
     } else {
       res = retainedTsBlock.getRegion(startOffset, maxTupleSizeOfTsBlock);
       startOffset += maxTupleSizeOfTsBlock;
+      System.out.println("else");
     }
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Current tsBlock size is : {}", res.getRetainedSizeInBytes());
     }
+    System.out.println("getResultFromRetainedTsBlock is " + showTsBlock(res));
     return res;
   }
 
   @Override
   public OperatorContext getOperatorContext() {
     return operatorContext;
+  }
+
+  private String showTsBlock(TsBlock tsBlock) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("\n！！！当前Scan的TsBlock为:\n");
+    // We keep the whole dump under read lock to keep a consistent snapshot
+//        lock.readLock().lock();
+    try {
+      sb.append("  Identity Sink TsBlock: present\n");
+      final int rowCount = tsBlock.getPositionCount();
+      final org.apache.tsfile.block.column.Column[] valueColumns = tsBlock.getValueColumns();
+      final int colCount = valueColumns == null ? 0 : valueColumns.length;
+      sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
+
+      // time column
+      long[] times = tsBlock.getTimeColumn() == null ? null : tsBlock.getTimeColumn().getTimes();
+      if (times != null) {
+        sb.append("    time:");
+        for (int i = 0; i < rowCount; i++) {
+          sb.append(i == 0 ? " [" : ", ").append(times[i]);
+        }
+        sb.append("]\n");
+      } else {
+        sb.append("    time: <null>\n");
+      }
+
+      // values (assume double)
+      for (int c = 0; c < colCount; c++) {
+        sb.append("    col").append(c).append(":");
+        org.apache.tsfile.block.column.Column col = valueColumns[c];
+        if (col == null) {
+          sb.append(" <null>\n");
+          continue;
+        }
+        sb.append(" [");
+        for (int r = 0; r < rowCount; r++) {
+          if (r > 0) sb.append(", ");
+          // as requested, assume double type
+          sb.append(col.getDouble(r));
+        }
+        sb.append("]\n");
+      }
+    } catch (Throwable t) {
+      sb.append("  LeftOuterJoinCache: <error dumping cache> ").append(t.getMessage()).append("\n");
+    }
+    return sb.toString();
   }
 }

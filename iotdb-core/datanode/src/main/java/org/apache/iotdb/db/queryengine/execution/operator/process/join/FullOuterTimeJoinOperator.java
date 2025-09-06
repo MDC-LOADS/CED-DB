@@ -237,24 +237,24 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
 
     @Override
     public boolean hasNext() throws Exception {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
-            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
-                //清空全部中间状态
-                Arrays.fill(inputIndex, 0);
-                Arrays.fill(shadowInputIndex, 0);
-                Arrays.fill(noMoreTsBlocks, false);
-                inputTsBlocks = new TsBlock[inputOperatorsCount];
-                retainedTsBlock = null;
-                for (int i = 0; i < inputOperatorsCount; i++) {
-                    canCallNext[i] = false;
-                }
-                currentChildIndex = 0;
-                hasEmptyChildInput = false;
-                timeSelector.clear();
-                queryStateManager.getOperatorClearManager().clearOperator("FullOuterJoin");
-            }
-        }
+//        if(QueryStateManager.isInitialized()){
+//            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+//            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
+//                //清空全部中间状态
+//                Arrays.fill(inputIndex, 0);
+//                Arrays.fill(shadowInputIndex, 0);
+//                Arrays.fill(noMoreTsBlocks, false);
+//                inputTsBlocks = new TsBlock[inputOperatorsCount];
+//                retainedTsBlock = null;
+//                for (int i = 0; i < inputOperatorsCount; i++) {
+//                    canCallNext[i] = false;
+//                }
+//                currentChildIndex = 0;
+//                hasEmptyChildInput = false;
+//                timeSelector.clear();
+//                queryStateManager.getOperatorClearManager().clearOperator("FullOuterJoin");
+//            }
+//        }
         if (finished) {
             return false;
         }

@@ -117,7 +117,8 @@ public class IdentitySinkOperator implements Operator {
                   if(queryStateManager.isSingleScan()){
                       String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
                       QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
-                      long offset = scanStates.getOffset();
+                      long offset = scanStates.getScanTimestamp();
+                      System.out.println("返回的offset为："+offset);
                       String seriesPath = queryStateManager.getSeriesPath(planNodeId);
                       callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,false);
                   }else {

@@ -437,7 +437,7 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
             //                System.out.println("设置成功，id为"+operatorContext.getPlanNodeId().getId());
             queryStateManager.setScanPathExchangeByPlanNodeId(operatorContext.getPlanNodeId().getId(),
                     operatorContext.getDriverContext().getOperatorContexts().size() == 1);
-            System.out.println("\n-------------\nvisit series scan start to work\n-------------\n");
+//            System.out.println("\n-------------\nvisit series scan start to work\n-------------\n");
             QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
             Filter newOffsetFilter;
             if(scanStates.isCouldEqual()){

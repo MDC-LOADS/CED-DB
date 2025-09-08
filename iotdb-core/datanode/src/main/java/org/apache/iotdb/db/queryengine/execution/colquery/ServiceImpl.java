@@ -32,7 +32,7 @@ public class ServiceImpl implements E2CColService.Iface{
     }
 
     @Override
-    public void AnsMessageWithLeftOuterJoin(int edgeFragmentId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumn, List<Column> valueColumns, boolean isRightCache) throws TException {
+    public void AnsMessageWithLeftOuterJoin(int edgeFragmentId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft, TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
         //将数据转换后塞到全局变量中，状态变更pre_col_query
         QueryStateManager queryStateManager = QueryStateManager.getInstance();
         queryStateManager.setEdgeFragmentId(edgeFragmentId);
@@ -43,7 +43,7 @@ public class ServiceImpl implements E2CColService.Iface{
             scanStates.setScanTimestamp(value.offset);
             queryStateManager.setScanStates(value.getSeriesPath(),scanStates);
         });
-        List<TSDataType> inferredTypes = valueColumns.stream()
+        List<TSDataType> inferredTypesLeft = valueColumnsLeft.stream()
                 .map(column -> {
                     ColumnData columnData = column.getData();
                     if (columnData == null) {
@@ -64,10 +64,34 @@ public class ServiceImpl implements E2CColService.Iface{
                     return TSDataType.UNKNOWN;
                 })
                 .collect(Collectors.toList());
-        TsBlock cache = ScanInfoConverter.convertColumnsToTsBlock(timeColumn,valueColumns,inferredTypes);
+        List<TSDataType> inferredTypesRight = valueColumnsRight.stream()
+                .map(column -> {
+                    ColumnData columnData = column.getData();
+                    if (columnData == null) {
+                        return TSDataType.UNKNOWN;
+                    }
+                    // 根据 ColumnData 的实际字段推断类型
+                    if (columnData.isSetIntValues()) {
+                        return TSDataType.INT32;
+                    } else if (columnData.isSetLongValues()) {
+                        return TSDataType.INT64;
+                    } else if (columnData.isSetDoubleValues()) {
+                        return TSDataType.DOUBLE;
+                    } else if (columnData.isSetStringValues()) {
+                        return TSDataType.TEXT;
+                    } else if (columnData.isSetBoolValues()) {
+                        return TSDataType.BOOLEAN;
+                    }
+                    return TSDataType.UNKNOWN;
+                })
+                .collect(Collectors.toList());
+        TsBlock cacheLeft = ScanInfoConverter.convertColumnsToTsBlock(timeColumnLeft,valueColumnsLeft,inferredTypesLeft);
+        TsBlock cacheRight = ScanInfoConverter.convertColumnsToTsBlock(timeColumnRight,valueColumnsRight,inferredTypesRight);
         queryStateManager.setHasLeftOuterJoin(true);
-        queryStateManager.setLeftOuterJoinCache(cache);
-        queryStateManager.setIsRightCache(isRightCache);
+        queryStateManager.setLeftOuterJoinCacheLeft(cacheLeft);
+        queryStateManager.setLeftOuterJoinCacheRight(cacheRight);
+        System.out.println(queryStateManager.getStateSummary());
+        System.out.println("接收的cache为："+showTsBlock(cacheLeft)+showTsBlock(cacheRight));
         queryStateManager.getStateMachine().transitionToPreColQuery();
     }
 
@@ -82,6 +106,7 @@ public class ServiceImpl implements E2CColService.Iface{
             scanStates.setScanTimestamp(value.offset);
             queryStateManager.setScanStates(value.getSeriesPath(),scanStates);
         });
+        System.out.println("接收到的索引为："+queryStateManager.getStateSummary());
         queryStateManager.getStateMachine().transitionToPreColQuery();
 //        notifyAll();
     }
@@ -136,5 +161,51 @@ public class ServiceImpl implements E2CColService.Iface{
                 }
             }
         }
+    }
+
+    private String showTsBlock(TsBlock tsBlock) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n！！！准备发送当前的TsBlock为:\n");
+        // We keep the whole dump under read lock to keep a consistent snapshot
+//        lock.readLock().lock();
+        try {
+            sb.append("  Identity Sink TsBlock: present\n");
+            final int rowCount = tsBlock.getPositionCount();
+            final org.apache.tsfile.block.column.Column[] valueColumns = tsBlock.getValueColumns();
+            final int colCount = valueColumns == null ? 0 : valueColumns.length;
+            sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
+
+            // time column
+            long[] times = tsBlock.getTimeColumn() == null ? null : tsBlock.getTimeColumn().getTimes();
+            if (times != null) {
+                sb.append("    time:");
+                for (int i = 0; i < rowCount; i++) {
+                    sb.append(i == 0 ? " [" : ", ").append(times[i]);
+                }
+                sb.append("]\n");
+            } else {
+                sb.append("    time: <null>\n");
+            }
+
+            // values (assume double)
+            for (int c = 0; c < colCount; c++) {
+                sb.append("    col").append(c).append(":");
+                org.apache.tsfile.block.column.Column col = valueColumns[c];
+                if (col == null) {
+                    sb.append(" <null>\n");
+                    continue;
+                }
+                sb.append(" [");
+                for (int r = 0; r < rowCount; r++) {
+                    if (r > 0) sb.append(", ");
+                    // as requested, assume double type
+                    sb.append(col.getDouble(r));
+                }
+                sb.append("]\n");
+            }
+        } catch (Throwable t) {
+            sb.append("  LeftOuterJoinCache: <error dumping cache> ").append(t.getMessage()).append("\n");
+        }
+        return sb.toString();
     }
 }

@@ -97,11 +97,8 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
     if(QueryStateManager.isInitialized()){
         QueryStateManager queryStateManager = QueryStateManager.getInstance();
         if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
-            if(queryStateManager.getIsRightCache()){
-                this.rightTsBlock = queryStateManager.getLeftOuterJoinCache();
-            }else {
-                this.leftTsBlock = queryStateManager.getLeftOuterJoinCache();
-            }
+            this.rightTsBlock = queryStateManager.getLeftOuterJoinCacheRight();
+            this.leftTsBlock = queryStateManager.getLeftOuterJoinCacheLeft();
         }
     }
   }
@@ -395,9 +392,9 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
             TsBlock cacheBlock = extractDataFromThreshold(rightTsBlock, rightIndex, thresholdTime);
 
             if (cacheBlock != null && cacheBlock.getPositionCount() > 0) {
-                stateManager.setLeftOuterJoinCache(cacheBlock);
+                stateManager.setLeftOuterJoinCacheRight(cacheBlock);
+                stateManager.setLeftOuterJoinCacheLeft(null);
                 stateManager.setHasLeftOuterJoin(true);
-                stateManager.setIsRightCache(true);
             }
         }
         // Case 2: rightTsBlock is empty or finished, cache data from leftTsBlock
@@ -409,10 +406,23 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
 
             if (cacheBlock != null && cacheBlock.getPositionCount() > 0) {
                 System.out.println("设置cache啦");
-                stateManager.setLeftOuterJoinCache(cacheBlock);
+                stateManager.setLeftOuterJoinCacheLeft(cacheBlock);
+                stateManager.setLeftOuterJoinCacheRight(null);
                 stateManager.setHasLeftOuterJoin(true);
-                stateManager.setIsRightCache(false);
             }
+        }
+        else if (rightTsBlock!=null && rightIndex==0 && leftTsBlock!=null && leftIndex==0) {
+            long thresholdTimeRight = rightTsBlock.getTimeByIndex(rightIndex);
+            long thresholdTimeLeft = leftTsBlock.getTimeByIndex(leftIndex);
+            if(thresholdTimeRight == thresholdTimeLeft){
+                stateManager.setLeftOuterJoinCacheLeft(leftTsBlock);
+                stateManager.setLeftOuterJoinCacheRight(rightTsBlock);
+                stateManager.setHasLeftOuterJoin(true);
+            }
+        }
+        else {
+            stateManager.setLeftOuterJoinCacheLeft(null);
+            stateManager.setLeftOuterJoinCacheRight(null);
         }
     }
 

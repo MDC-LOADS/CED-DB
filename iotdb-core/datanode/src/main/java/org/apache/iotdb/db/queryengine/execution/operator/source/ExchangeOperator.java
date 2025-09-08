@@ -85,11 +85,11 @@ public class ExchangeOperator implements SourceOperator {
       TsBlock res = sourceHandle.receive();
       if(QueryStateManager.isInitialized()){
           QueryStateManager queryStateManager = QueryStateManager.getInstance();
-          System.out.println("source id:" + sourceId);
-          System.out.println("has:"+queryStateManager.isHasSeriesPath(sourceId.getId()));
+//          System.out.println("source id:" + sourceId);
+//          System.out.println("has:"+queryStateManager.isHasSeriesPath(sourceId.getId()));
           List<String> plans = queryStateManager.getAllScanPlanNodeIdList();
           for (String plan : plans) {
-            System.out.println("plan id:" + plan);
+//            System.out.println("plan id:" + plan);
           }
           if(queryStateManager.isHasSeriesPath(sourceId.getId())
                   && !queryStateManager.isSingleScan()

@@ -44,6 +44,7 @@ import org.apache.thrift.transport.layered.TFramedTransport;
 import org.apache.tsfile.read.common.block.TsBlock;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -129,15 +130,35 @@ public class IdentitySinkOperator implements Operator {
                       Map<String, ScanInfo> scanInfoMap = new HashMap<>();
                       for(QueryStateManager.ScanStates scanState:scanStates)
                       {
+                          if(scanState.getOffset()==0 && scanState.getScanTimestamp()!=0){
+                              scanState.setOffset(scanState.getScanTimestamp());
+                          }
                           ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
                           scanInfoMap.put(planNodeIds.get(i),scanInfo);
                           i++;
                       }
                       if(queryStateManager.hasLeftOuterJoin()){
-                          TsBlock cache = queryStateManager.getLeftOuterJoinCache();
-                          ScanInfoConverter.TsBlockColumns valueColumns=ScanInfoConverter.convertTsBlockToColumns(cache);
-                          callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumns.getTimeColumn(),valueColumns.getValueColumns(),queryStateManager.getIsRightCache());
+                          TsBlock cacheLeft = queryStateManager.getLeftOuterJoinCacheLeft();
+                          TsBlock cacheRight = queryStateManager.getLeftOuterJoinCacheRight();
+                          ScanInfoConverter.TsBlockColumns valueColumnsLeft=ScanInfoConverter.convertTsBlockToColumns(cacheLeft);
+                          ScanInfoConverter.TsBlockColumns valueColumnsRight=ScanInfoConverter.convertTsBlockToColumns(cacheRight);
+                          System.out.println(queryStateManager.getStateSummary());
+                          System.out.println("准备发送的cache"+showTsBlock(cacheLeft)+showTsBlock(cacheRight));
+                          if(valueColumnsRight==null && valueColumnsLeft!=null){
+                              callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumnsLeft.getTimeColumn(),valueColumnsLeft.getValueColumns(),new TimeColumn(),new ArrayList<>());
+                          }
+                          else if(valueColumnsLeft==null && valueColumnsRight!=null){
+                              callColQueryCloseWithLeftOuterJoin(scanInfoMap,new TimeColumn(),new ArrayList<>(),valueColumnsRight.getTimeColumn(),valueColumnsRight.getValueColumns());
+
+                          }
+                          else if(valueColumnsLeft==null){
+                              callColQueryCloseWithLeftOuterJoin(scanInfoMap,new TimeColumn(),new ArrayList<>(),new TimeColumn(),new ArrayList<>());
+                          }
+                          else {
+                              callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumnsLeft.getTimeColumn(),valueColumnsLeft.getValueColumns(),valueColumnsRight.getTimeColumn(),valueColumnsRight.getValueColumns());
+                          }
                       }else {
+                          System.out.println(queryStateManager.getStateSummary());
                           callColQueryClose(scanInfoMap);
                       }
                   }
@@ -175,13 +196,13 @@ public class IdentitySinkOperator implements Operator {
   public TsBlock next() throws Exception {
     if(QueryStateManager.isInitialized()){
         QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        System.out.println("\n怀疑是IdentitySink的问题"+queryStateManager.getRootIdentitySinkId()+"\n");
+//        System.out.println("\n怀疑是IdentitySink的问题"+queryStateManager.getRootIdentitySinkId()+"\n");
         if(queryStateManager.getRootIdentitySinkId()!=null){
             System.out.println();
         }
         if(queryStateManager.getRootIdentitySinkId()!=null &&
                 queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
-            System.out.println("\n找到了，状态机状态为："+queryStateManager.getStateMachine().getState()+"\n");
+//            System.out.println("\n找到了，状态机状态为："+queryStateManager.getStateMachine().getState()+"\n");
             if(queryStateManager.getStateMachine().getState()== ColQueryState.COL_QUERY){
                 if (needToReturnNull) {
                     needToReturnNull = false;
@@ -190,7 +211,7 @@ public class IdentitySinkOperator implements Operator {
                 }
                 TsBlock res = children.get(downStreamChannelIndex.getCurrentIndex()).nextWithTimer();
                 //TODO:开始发送数据
-                System.out.println("\n要开始发送啦！");
+//                System.out.println("\n要开始发送啦！");
                 if(res!=null && res.getPositionCount()!=0 && !colSinkHandle.isAborted()){
                     try {
                         Thread.sleep(2);
@@ -199,8 +220,8 @@ public class IdentitySinkOperator implements Operator {
                         throw new RuntimeException(e);
                     }
                     colSinkHandle.send(res);//发送数据
-                    System.out.println(showTsBlock(res));
-                    System.out.println("\nseries scan send");
+//                    System.out.println(showTsBlock(res));
+//                    System.out.println("\nseries scan send");
                 }
                 return res;
             }
@@ -291,14 +312,14 @@ public class IdentitySinkOperator implements Operator {
       }
   }
 
-  public void callColQueryCloseWithLeftOuterJoin(Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumn, List<Column> valueColumns,boolean isRightCache) throws TException{
+  public void callColQueryCloseWithLeftOuterJoin(Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft,TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException{
       try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9090))) {
           TProtocol protocol = new TBinaryProtocol(transport);
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();
           // 调用服务方法
 
-          client.ColQueryCloseWithLeftOuterJoin(scanInfoMap,timeColumn,valueColumns,isRightCache);
+          client.ColQueryCloseWithLeftOuterJoin(scanInfoMap,timeColumnLeft,valueColumnsLeft,timeColumnRight,valueColumnsRight);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
       } catch (TException x) {
           x.printStackTrace();

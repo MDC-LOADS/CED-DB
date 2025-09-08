@@ -148,7 +148,9 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
   @Override
   public TsBlock next() throws Exception {
     if (retainedTsBlock != null) {
-      return getResultFromRetainedTsBlock();
+      TsBlock res = getResultFromRetainedTsBlock();
+      updateScanStates();
+      return res;
     }
     tsBlockBuilder.reset();
     if (!prepareInput()) {
@@ -195,9 +197,9 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
     resultTsBlock = tsBlockBuilder.build();
 
     // Update scan states after processing
+    TsBlock res = checkTsBlockSizeAndGetResult();
     updateScanStates();
-
-    return checkTsBlockSizeAndGetResult();
+    return res;
   }
 
   private void appendOneRow(long currentTime) {

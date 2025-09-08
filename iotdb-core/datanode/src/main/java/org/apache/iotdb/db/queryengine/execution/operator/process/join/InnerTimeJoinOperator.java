@@ -473,7 +473,7 @@ public class InnerTimeJoinOperator implements ProcessOperator {
               stateManager.setScanStates(scanPath, scanStates);
           }
 
-          if (inputTsBlocks[i] == null) {
+          if (inputTsBlocks[i] == null || inputTsBlocks[i].getPositionCount() == inputIndex[i]) {
               // Case 1: inputTsBlocks[i] is empty
               // Set offset to current scanTimestamp and isCouldEqual to false
               stateManager.updateScanOffset(scanPath, scanStates.getScanTimestamp());

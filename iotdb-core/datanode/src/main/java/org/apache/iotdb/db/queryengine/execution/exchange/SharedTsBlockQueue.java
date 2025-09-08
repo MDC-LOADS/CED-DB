@@ -39,6 +39,9 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static com.google.common.util.concurrent.Futures.immediateVoidFuture;
 
@@ -179,16 +182,23 @@ public class SharedTsBlockQueue {
     if (closed) {
       throw new IllegalStateException("queue has been destroyed");
     }
-    TsBlock tsBlock = queue.remove();
-    localMemoryManager
-        .getQueryPool()
-        .free(
-            localFragmentInstanceId.getQueryId(),
-            fullFragmentInstanceId,
-            localPlanNodeId,
-            tsBlock.getRetainedSizeInBytes());
-    bufferRetainedSizeInBytes -= tsBlock.getRetainedSizeInBytes();
-    // Every time LocalSourceHandle consumes a TsBlock, it needs to send the event to
+    TsBlock tsBlock = null;
+    if(!queue.isEmpty()){
+        tsBlock = queue.remove();
+    }
+      if (tsBlock != null) {
+          localMemoryManager
+              .getQueryPool()
+              .free(
+                  localFragmentInstanceId.getQueryId(),
+                  fullFragmentInstanceId,
+                  localPlanNodeId,
+                  tsBlock.getRetainedSizeInBytes());
+      }
+      if (tsBlock != null) {
+          bufferRetainedSizeInBytes -= tsBlock.getRetainedSizeInBytes();
+      }
+      // Every time LocalSourceHandle consumes a TsBlock, it needs to send the event to
     // corresponding LocalSinkChannel.
     if (sinkChannel != null) {
       sinkChannel.checkAndInvokeOnFinished();
@@ -368,34 +378,82 @@ public class SharedTsBlockQueue {
             return 0;
         }
 
-        int clearedCount = queue.size();
+        int clearedCount;
 
-        // Fast bulk memory release - release all at once instead of per TsBlock
-        if (bufferRetainedSizeInBytes > 0L) {
-            localMemoryManager
-                    .getQueryPool()
-                    .free(
-                            localFragmentInstanceId.getQueryId(),
-                            fullFragmentInstanceId,
-                            localPlanNodeId,
-                            bufferRetainedSizeInBytes);
-            bufferRetainedSizeInBytes = 0;
+        synchronized (this) {
+            clearedCount = queue.size();
+
+            // 批量释放已计入的缓冲内存
+            if (bufferRetainedSizeInBytes > 0L) {
+                localMemoryManager
+                        .getQueryPool()
+                        .free(
+                                localFragmentInstanceId.getQueryId(),
+                                fullFragmentInstanceId,
+                                localPlanNodeId,
+                                bufferRetainedSizeInBytes);
+                bufferRetainedSizeInBytes = 0L;
+            }
+
+            // 快速清空队列
+            queue.clear();
+
+            // 重置 blocked：让消费者与调用方可通过 isBlocked()/wait 方法等待新数据
+            if (!noMoreTsBlocks) {
+                blocked = SettableFuture.create();
+            }
         }
 
-        // Fast queue clear - O(1) operation instead of O(n) remove loop
-        queue.clear();
-
-        // Reset blocked state to allow new data if queue is now empty and no more blocks flag is false
-        if (blocked.isDone() && !noMoreTsBlocks) {
-            blocked = SettableFuture.create();
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("FastClear completed: {} TsBlocks cleared from queue {}",
+                    clearedCount, fullFragmentInstanceId);
         }
-
-        LOGGER.debug("FastClear completed: {} TsBlocks cleared from queue {}",
-                clearedCount, fullFragmentInstanceId);
 
         return clearedCount;
     }
 
+    /**
+     * 阻塞等待，直到队列变为非空或队列被标记为不再有数据/关闭。
+     * 注意：该方法不持有对象锁进行等待，以免阻塞生产者 add()。
+     */
+    public void waitUntilNotEmpty() {
+        ListenableFuture<Void> waitFuture;
+        synchronized (this) {
+            if (closed || noMoreTsBlocks || !queue.isEmpty()) {
+                return;
+            }
+            // 确保有一个未完成的 future 用于等待新数据到来
+            if (blocked.isDone()) {
+                blocked = SettableFuture.create();
+            }
+            waitFuture = blocked;
+        }
+
+        try {
+            waitFuture.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            // 交由上层处理，避免在此抛出
+            LOGGER.debug("waitUntilNotEmpty interrupted by exception on queue {}: {}",
+                    fullFragmentInstanceId, e.getMessage());
+        }
+    }
+
+    /**
+     * 非阻塞获取一个 Future：当队列变为非空时完成；若当前已非空或不再有数据/关闭，则返回已完成的 future。
+     */
+    public ListenableFuture<Void> waitUntilNotEmptyAsync() {
+        synchronized (this) {
+            if (closed || noMoreTsBlocks || !queue.isEmpty()) {
+                return immediateVoidFuture();
+            }
+            if (blocked.isDone()) {
+                blocked = SettableFuture.create();
+            }
+            return blocked;
+        }
+    }
     /**
      * Clear the queue and reset to initial state while keeping it open.
      * Similar to fastClear() but also resets the noMoreTsBlocks flag.

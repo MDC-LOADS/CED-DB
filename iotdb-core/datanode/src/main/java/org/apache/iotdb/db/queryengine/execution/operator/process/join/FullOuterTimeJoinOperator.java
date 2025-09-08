@@ -130,7 +130,9 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
         if (this.childScanPaths.isEmpty() && QueryStateManager.isInitialized()) {
             for (int i = 0; i < inputOperatorsCount; i++) {
                 String scanPath = extractSeriesPathFromChild(children.get(i), i);
-                this.childScanPaths.add(scanPath);
+                if(scanPath!=null){
+                    this.childScanPaths.add(scanPath);
+                }
             }
         }
     }
@@ -159,7 +161,9 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
     @Override
     public TsBlock next() throws Exception {
         if (retainedTsBlock != null) {
-            return getResultFromRetainedTsBlock();
+            TsBlock res = getResultFromRetainedTsBlock();
+            updateScanStates();
+            return res;
         }
         tsBlockBuilder.reset();
         if (!prepareInput()) {
@@ -207,9 +211,11 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
 
 
         // Update scan states after processing
+        System.out.println("此次join next返回的结果为：");
+        System.out.println("input:"+inputIndex[0]+"   "+inputIndex[1]);
+        TsBlock res = checkTsBlockSizeAndGetResult();
         updateScanStates();
-
-        return checkTsBlockSizeAndGetResult();
+        return res;
     }
 
     private void appendOneRow(long currentTime) {
@@ -237,24 +243,27 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
 
     @Override
     public boolean hasNext() throws Exception {
-//        if(QueryStateManager.isInitialized()){
-//            QueryStateManager queryStateManager = QueryStateManager.getInstance();
-//            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
-//                //清空全部中间状态
-//                Arrays.fill(inputIndex, 0);
-//                Arrays.fill(shadowInputIndex, 0);
-//                Arrays.fill(noMoreTsBlocks, false);
-//                inputTsBlocks = new TsBlock[inputOperatorsCount];
-//                retainedTsBlock = null;
-//                for (int i = 0; i < inputOperatorsCount; i++) {
-//                    canCallNext[i] = false;
-//                }
-//                currentChildIndex = 0;
-//                hasEmptyChildInput = false;
-//                timeSelector.clear();
-//                queryStateManager.getOperatorClearManager().clearOperator("FullOuterJoin");
-//            }
-//        }
+        if(QueryStateManager.isInitialized()){
+            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED
+                    && !queryStateManager.getOperatorClearManager().isCleared("FullOuterJoin")){
+                //清空全部中间状态
+                Arrays.fill(inputIndex, 0);
+                Arrays.fill(shadowInputIndex, 0);
+                Arrays.fill(noMoreTsBlocks, false);
+                inputTsBlocks = new TsBlock[inputOperatorsCount];
+                retainedTsBlock = null;
+                startOffset=0;
+                for (int i = 0; i < inputOperatorsCount; i++) {
+                    canCallNext[i] = false;
+                }
+                currentChildIndex = 0;
+                hasEmptyChildInput = false;
+                timeSelector.clear();
+                tsBlockBuilder.reset();
+                queryStateManager.getOperatorClearManager().clearOperator("FullOuterJoin");
+            }
+        }
         if (finished) {
             return false;
         }
@@ -444,25 +453,29 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
                 //Case 2:当子算子对应的 inputTsBlocks[] 为空,retainedTsBlock不为空时
                 if(retainedTsBlock !=null && retainedTsBlock.getPositionCount() > 0){
                     long offsetTime;
-                    offsetTime = retainedTsBlock.getTimeByIndex(0);
+                    offsetTime = retainedTsBlock.getTimeByIndex(startOffset);
                     stateManager.updateScanOffset(scanPath, offsetTime);
                     stateManager.updateScanCouldEqual(scanPath, true);
+                    System.out.println("2设置offset为："+offsetTime);
                 }else {
                     // Case 1: 当子算子对应的 inputTsBlocks[] 为空,retainedTsBlock为空时
                     // scanOffset 设置为它的 ScanTimestamp，isCouldEqual 设置为 false
                     stateManager.updateScanOffset(scanPath, scanStates.getScanTimestamp());
                     stateManager.updateScanCouldEqual(scanPath, false);
+                    System.out.println("1设置offset为："+scanStates.getScanTimestamp());
                 }
             } else {
                 long offsetTime;
                 // inputTsBlocks[] 不为空的情况
                 // Case 4: retainedTsBlock 也不为空，offset 设置为 retainedTsBlock 中的最小时间戳
                 if (retainedTsBlock != null && retainedTsBlock.getPositionCount() > 0) {
-                    offsetTime = retainedTsBlock.getTimeByIndex(0); // 最小时间戳（第一个）
+                    offsetTime = retainedTsBlock.getTimeByIndex(startOffset); // 最小时间戳（第一个）
+                    System.out.println("4设置offset为："+offsetTime);
                 }
                 // Case 3: retainedTsBlock 为空，scanOffset 设置为 returnedMaxTime
                 else {
                     offsetTime = inputTsBlocks[i].getTimeByIndex(inputIndex[i]);
+                    System.out.println("3设置offset为："+offsetTime);
                 }
 
                 stateManager.updateScanOffset(scanPath, offsetTime);
@@ -524,7 +537,7 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
             }
         }
         // Fall back to default path naming if SeriesScanUtil is not found or extraction fails
-        return "child_" + childIndex + "_" + operatorContext.getPlanNodeId();
+        return null;
     }
 
     /**

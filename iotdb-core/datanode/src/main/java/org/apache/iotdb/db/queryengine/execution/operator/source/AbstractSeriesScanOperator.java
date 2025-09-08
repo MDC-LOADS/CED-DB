@@ -45,6 +45,14 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
 
     @Override
     public TsBlock next() throws Exception {
+
+        try{
+            Thread.sleep(500);
+            System.out.println("stop scan 2s");
+        }catch (InterruptedException e){
+            e.printStackTrace();
+        }
+
         if (retainedTsBlock != null) {
             TsBlock res = getResultFromRetainedTsBlock();
             setScanTimestamp(res);
@@ -57,11 +65,11 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
         }
         resultTsBlock = resultTsBlockBuilder.build();
         resultTsBlockBuilder.reset();
-        setScanTimestamp(resultTsBlock);
-        System.out.println(showTsBlock(resultTsBlock));
-        TsBlock ans = checkTsBlockSizeAndGetResult();
-        System.out.println("最终scan返回的TsBlock"+showTsBlock(ans));
-        return ans;
+//        System.out.println(showTsBlock(resultTsBlock));
+        TsBlock res = checkTsBlockSizeAndGetResult();
+        setScanTimestamp(res);
+        System.out.println("最终scan返回的TsBlock"+showTsBlock(res));
+        return res;
     }
 
     private void setScanTimestamp(TsBlock res) {
@@ -90,55 +98,61 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
             while (queryStateManager.getStateMachine().getState()==ColQueryState.COL_QUERY){
                 try {
                     Thread.sleep(10);
+                    System.out.println("等待协同完成");
                 }catch (InterruptedException e){
                     e.printStackTrace();
                 }
             }
             if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
-                retainedTsBlock = null;
-                startOffset = 0;
-                //清空管道
-                ISourceHandle sourceHandle=queryStateManager.getScanSourceHandle(operatorContext.getPlanNodeId().getId());
+                System.out.println("准备进入清空");
+                if(!queryStateManager.getOperatorClearManager().isCleared(sourceId.getId())){
+                    System.out.println("完成清空");
+                    retainedTsBlock = null;
+                    startOffset = 0;
+                    //清空管道
+                ISourceHandle sourceHandle = queryStateManager.getScanSourceHandle(sourceId.getId());
                 if(sourceHandle instanceof LocalSourceHandle  && !queryStateManager.isSingleScan()) {
+                    System.out.println("清除了Source管道，plan node id为："+sourceId.getId());
                     ((LocalSourceHandle) sourceHandle).getSharedTsBlockQueue().fastClear();
                 }
 
-                //创建新的series scan util 用于恢复查询
-                PartialPath seriesPath = this.seriesScanUtil.seriesPath;
-                Ordering scanOrder=this.seriesScanUtil.scanOrder;
-                SeriesScanOptions oldScanOptions = this.seriesScanUtil.scanOptions;
-                QueryDataSource dataSource =this.seriesScanUtil.dataSource;
-                Filter newOffsetFilter;
-                QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
-                System.out.println("设置新查询的filter的offet为："+scanStates.getOffset());
-                if(scanStates.isCouldEqual()){
-                    newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());
-                }else {
-                    newOffsetFilter = TimeFilterApi.gt(scanStates.getOffset());
-                }
-                Filter existingFilter = oldScanOptions.getGlobalTimeFilter();
-                Filter combinedFilter = null;
-                if (existingFilter != null) {
-                    combinedFilter = FilterFactory.and(existingFilter, newOffsetFilter);
+                    //创建新的series scan util 用于恢复查询
+                    PartialPath seriesPath = this.seriesScanUtil.seriesPath;
+                    Ordering scanOrder=this.seriesScanUtil.scanOrder;
+                    SeriesScanOptions oldScanOptions = this.seriesScanUtil.scanOptions;
+                    QueryDataSource dataSource =this.seriesScanUtil.dataSource;
+                    Filter newOffsetFilter;
+                    QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
+                    System.out.println("设置新查询的filter的offet为："+scanStates.getOffset());
+                    if(scanStates.isCouldEqual()){
+                        newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());
+                    }else {
+                        newOffsetFilter = TimeFilterApi.gt(scanStates.getOffset());
+                    }
+                    Filter existingFilter = oldScanOptions.getGlobalTimeFilter();
+                    Filter combinedFilter = null;
+                    if (existingFilter != null) {
+                        combinedFilter = FilterFactory.and(existingFilter, newOffsetFilter);
 //          System.out.println("组合现有过滤器和新timestamp过滤器");
-                } else {
-                    combinedFilter = newOffsetFilter;
+                    } else {
+                        combinedFilter = newOffsetFilter;
 //          System.out.println("使用新timestamp过滤器作为globalTimeFilter");
+                    }
+                    // 创建新的SeriesScanOptions
+                    SeriesScanOptions.Builder builder = new SeriesScanOptions.Builder();
+                    SeriesScanOptions newScanOptions = builder
+                            .withGlobalTimeFilter(combinedFilter)
+                            .withPushDownFilter(oldScanOptions.getPushDownFilter())
+                            .build();
+                    if(oldScanOptions.pushDownLimit!=0){
+                        System.out.println("pushDownLimit不为0:"+oldScanOptions.pushDownLimit);
+                    }
+                    builder.withAllSensors(oldScanOptions.getAllSensors());
+                    newScanOptions = builder.build();
+                    FragmentInstanceContext context = this.seriesScanUtil.context;
+                    this.seriesScanUtil = new SeriesScanUtil(seriesPath, scanOrder, newScanOptions, context,dataSource);
+                    queryStateManager.getOperatorClearManager().clearOperator(operatorContext.getPlanNodeId().getId());
                 }
-                // 创建新的SeriesScanOptions
-                SeriesScanOptions.Builder builder = new SeriesScanOptions.Builder();
-                SeriesScanOptions newScanOptions = builder
-                        .withGlobalTimeFilter(combinedFilter)
-                        .withPushDownFilter(oldScanOptions.getPushDownFilter())
-                        .build();
-                if(oldScanOptions.pushDownLimit!=0){
-                    System.out.println("pushDownLimit不为0:"+oldScanOptions.pushDownLimit);
-                }
-                builder.withAllSensors(oldScanOptions.getAllSensors());
-                newScanOptions = builder.build();
-                FragmentInstanceContext context = this.seriesScanUtil.context;
-                this.seriesScanUtil = new SeriesScanUtil(seriesPath, scanOrder, newScanOptions, context,dataSource);
-                queryStateManager.getOperatorClearManager().clearOperator(operatorContext.getPlanNodeId().getId());
             }
         }
         if (retainedTsBlock != null) {

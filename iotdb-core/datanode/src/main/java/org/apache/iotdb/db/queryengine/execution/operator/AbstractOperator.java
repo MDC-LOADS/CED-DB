@@ -83,24 +83,24 @@ public abstract class AbstractOperator implements Operator {
     if (maxTupleSizeOfTsBlock == -1) {
       initializeMaxTsBlockLength(retainedTsBlock);
     }
-    System.out.println("核对信息：");
-    System.out.println("size:"+retainedTsBlock.getPositionCount());
-    System.out.println("startOffset:"+startOffset);
-    System.out.println("maxTupleSizeOfTsBlock:"+maxTupleSizeOfTsBlock);
+//    System.out.println("核对信息：");
+//    System.out.println("size:"+retainedTsBlock.getPositionCount());
+//    System.out.println("startOffset:"+startOffset);
+//    System.out.println("maxTupleSizeOfTsBlock:"+maxTupleSizeOfTsBlock);
     if (retainedTsBlock.getPositionCount() - startOffset <= maxTupleSizeOfTsBlock) {
       res = retainedTsBlock.subTsBlock(startOffset);
       retainedTsBlock = null;
       startOffset = 0;
-      System.out.println("if");
+//      System.out.println("if");
     } else {
       res = retainedTsBlock.getRegion(startOffset, maxTupleSizeOfTsBlock);
       startOffset += maxTupleSizeOfTsBlock;
-      System.out.println("else");
+//      System.out.println("else");
     }
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Current tsBlock size is : {}", res.getRetainedSizeInBytes());
     }
-    System.out.println("getResultFromRetainedTsBlock is " + showTsBlock(res));
+//    System.out.println("getResultFromRetainedTsBlock is " + showTsBlock(res));
     return res;
   }
 

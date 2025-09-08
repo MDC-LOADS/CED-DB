@@ -171,7 +171,19 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
 
         // Update left outer join cache after processing
         updateLeftOuterJoinCache();
+        if(leftTsBlock != null) {
+            System.out.println("leftTsBlock: " + showTsBlock(leftTsBlock));
+            System.out.println("leftIndex: " + leftIndex);
+        }else {
+            System.out.println("leftTsBlock: null");
+        }
 
+        if(rightTsBlock != null) {
+            System.out.println("rightTsBlock: " + showTsBlock(rightTsBlock));
+            System.out.println("rightIndex: " + rightIndex);
+        }else {
+            System.out.println("rightTsBlock: null");
+        }
         return res;
     }
 
@@ -314,19 +326,16 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
     public boolean hasNext() throws Exception {
         if(QueryStateManager.isInitialized()){
             QueryStateManager queryStateManager = QueryStateManager.getInstance();
-            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
+            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED
+                    && !queryStateManager.getOperatorClearManager().isCleared("LeftOuterJoin")){
                 //清空全部中间状态
                 resultBuilder.reset();
-                leftTsBlock = null;
+                leftTsBlock = queryStateManager.getLeftOuterJoinCacheLeft();
                 leftIndex = 0;
-                rightTsBlock = null;
+                rightTsBlock = queryStateManager.getLeftOuterJoinCacheRight();
                 rightIndex = 0;
                 rightFinished = false;
-                if(queryStateManager.getIsRightCache()){
-                    rightTsBlock = queryStateManager.getLeftOuterJoinCache();
-                }else {
-                    leftTsBlock = queryStateManager.getLeftOuterJoinCache();
-                }
+
                 queryStateManager.getOperatorClearManager().clearOperator("LeftOuterJoin");
             }
         }
@@ -397,30 +406,45 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
         QueryStateManager stateManager = QueryStateManager.getInstance();
 
         // Case 1: leftTsBlock is empty, cache data from rightTsBlock
-        if ((leftTsBlock == null || leftIndex >= leftTsBlock.getPositionCount())
+        if ((leftTsBlock == null || leftIndex == leftTsBlock.getPositionCount())
                 && rightTsBlock != null && rightIndex < rightTsBlock.getPositionCount()) {
 
             long thresholdTime = rightTsBlock.getTimeByIndex(rightIndex);
             TsBlock cacheBlock = extractDataFromThreshold(rightTsBlock, rightIndex, thresholdTime);
 
             if (cacheBlock != null && cacheBlock.getPositionCount() > 0) {
-                stateManager.setLeftOuterJoinCache(cacheBlock);
+//                System.out.println("不应从这走"+showTsBlock(cacheBlock));
+                stateManager.setLeftOuterJoinCacheRight(cacheBlock);
+                stateManager.setLeftOuterJoinCacheLeft(null);
                 stateManager.setHasLeftOuterJoin(true);
-                stateManager.setIsRightCache(true);
             }
         }
         // Case 2: rightTsBlock is empty or finished, cache data from leftTsBlock
-        else if ((rightFinished || rightTsBlock == null || rightIndex >= rightTsBlock.getPositionCount())
+        else if ((rightFinished || rightTsBlock == null || rightIndex == rightTsBlock.getPositionCount())
                 && leftTsBlock != null && leftIndex < leftTsBlock.getPositionCount()) {
 
             long thresholdTime = leftTsBlock.getTimeByIndex(leftIndex);
             TsBlock cacheBlock = extractDataFromThreshold(leftTsBlock, leftIndex, thresholdTime);
 
             if (cacheBlock != null && cacheBlock.getPositionCount() > 0) {
-                stateManager.setLeftOuterJoinCache(cacheBlock);
+//                System.out.println("从这里走"+showTsBlock(cacheBlock));
+                stateManager.setLeftOuterJoinCacheLeft(cacheBlock);
+                stateManager.setLeftOuterJoinCacheRight(null);
                 stateManager.setHasLeftOuterJoin(true);
-                stateManager.setIsRightCache(false);
             }
+        }
+        else if (rightTsBlock!=null && rightIndex==0 && leftTsBlock!=null && leftIndex==0) {
+            long thresholdTimeRight = rightTsBlock.getTimeByIndex(rightIndex);
+            long thresholdTimeLeft = leftTsBlock.getTimeByIndex(leftIndex);
+            if(thresholdTimeRight == thresholdTimeLeft){
+                stateManager.setLeftOuterJoinCacheLeft(leftTsBlock);
+                stateManager.setLeftOuterJoinCacheRight(rightTsBlock);
+                stateManager.setHasLeftOuterJoin(true);
+            }
+        }
+        else {
+            stateManager.setLeftOuterJoinCacheLeft(null);
+            stateManager.setLeftOuterJoinCacheRight(null);
         }
     }
 
@@ -482,5 +506,50 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
         }
 
         return cacheBuilder.build();
+    }
+    private String showTsBlock(TsBlock tsBlock) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n！！！:\n");
+        // We keep the whole dump under read lock to keep a consistent snapshot
+//        lock.readLock().lock();
+        try {
+            sb.append("  输出块\n");
+            final int rowCount = tsBlock.getPositionCount();
+            final org.apache.tsfile.block.column.Column[] valueColumns = tsBlock.getValueColumns();
+            final int colCount = valueColumns == null ? 0 : valueColumns.length;
+            sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
+
+            // time column
+            long[] times = tsBlock.getTimeColumn() == null ? null : tsBlock.getTimeColumn().getTimes();
+            if (times != null) {
+                sb.append("    time:");
+                for (int i = 0; i < rowCount; i++) {
+                    sb.append(i == 0 ? " [" : ", ").append(times[i]);
+                }
+                sb.append("]\n");
+            } else {
+                sb.append("    time: <null>\n");
+            }
+
+            // values (assume double)
+            for (int c = 0; c < colCount; c++) {
+                sb.append("    col").append(c).append(":");
+                org.apache.tsfile.block.column.Column col = valueColumns[c];
+                if (col == null) {
+                    sb.append(" <null>\n");
+                    continue;
+                }
+                sb.append(" [");
+                for (int r = 0; r < rowCount; r++) {
+                    if (r > 0) sb.append(", ");
+                    // as requested, assume double type
+                    sb.append(col.getDouble(r));
+                }
+                sb.append("]\n");
+            }
+        } catch (Throwable t) {
+            sb.append("  LeftOuterJoinCache: <error dumping cache> ").append(t.getMessage()).append("\n");
+        }
+        return sb.toString();
     }
 }

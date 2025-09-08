@@ -82,17 +82,43 @@ public class ExchangeOperator implements SourceOperator {
 
     @Override
     public TsBlock next() throws Exception {
-        TsBlock res = sourceHandle.receive();
         if(QueryStateManager.isInitialized()){
+            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            if(queryStateManager.isHasSeriesPath(sourceId.getId())
+                    && !queryStateManager.isSingleScan()
+                    && queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())
+                    && queryStateManager.getStateMachine().getState() ==ColQueryState.PRE_CLOSED){
+                while(!queryStateManager.getOperatorClearManager().isCleared(sourceId.getId())){
+                    try {
+                        Thread.sleep(10);
+                    }catch(InterruptedException e){
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                if(sourceHandle instanceof LocalSourceHandle) {
+                    ((LocalSourceHandle) sourceHandle).getSharedTsBlockQueue().waitUntilNotEmpty();
+                }
+            }
+        }
+//        if(sourceHandle instanceof LocalSourceHandle) {
+//            ((LocalSourceHandle) sourceHandle).getSharedTsBlockQueue().waitUntilNotEmpty();
+//        }
+        TsBlock res = sourceHandle.receive();
+        if(sourceId.getId().equals("15")){
+            System.out.println("经过15");
+        }
+        if(QueryStateManager.isInitialized() && res!=null){
             QueryStateManager queryStateManager = QueryStateManager.getInstance();
             if(queryStateManager.isHasSeriesPath(sourceId.getId())
                     && !queryStateManager.isSingleScan()
                     && queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
                 long currentEndTime = res.getEndTime();
                 queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
+                System.out.println("设置时间戳"+currentEndTime+"此时的plan id为："+sourceId.getId());
                 if(!queryStateManager.hasScanSourceHandle(sourceId.getId())) {
                     queryStateManager.addScanSourceHandle(sourceId.getId(),sourceHandle);
                 }
+                System.out.println(showTsBlock(res));
             }
         }
         return res;
@@ -165,5 +191,52 @@ public class ExchangeOperator implements SourceOperator {
                 + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceId)
                 + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(operatorContext)
                 + MemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceHandle);
+    }
+
+    private String showTsBlock(TsBlock tsBlock) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n！！！当前Exchange的TsBlock为:\n");
+        // We keep the whole dump under read lock to keep a consistent snapshot
+//        lock.readLock().lock();
+        sb.append("plan node id :").append(sourceId.getId()).append("\n");
+        try {
+            sb.append("TsBlock: present\n");
+            final int rowCount = tsBlock.getPositionCount();
+            final org.apache.tsfile.block.column.Column[] valueColumns = tsBlock.getValueColumns();
+            final int colCount = valueColumns == null ? 0 : valueColumns.length;
+            sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
+
+            // time column
+            long[] times = tsBlock.getTimeColumn() == null ? null : tsBlock.getTimeColumn().getTimes();
+            if (times != null) {
+                sb.append("    time:");
+                for (int i = 0; i < rowCount; i++) {
+                    sb.append(i == 0 ? " [" : ", ").append(times[i]);
+                }
+                sb.append("]\n");
+            } else {
+                sb.append("    time: <null>\n");
+            }
+
+            // values (assume double)
+            for (int c = 0; c < colCount; c++) {
+                sb.append("    col").append(c).append(":");
+                org.apache.tsfile.block.column.Column col = valueColumns[c];
+                if (col == null) {
+                    sb.append(" <null>\n");
+                    continue;
+                }
+                sb.append(" [");
+                for (int r = 0; r < rowCount; r++) {
+                    if (r > 0) sb.append(", ");
+                    // as requested, assume double type
+                    sb.append(col.getDouble(r));
+                }
+                sb.append("]\n");
+            }
+        } catch (Throwable t) {
+            sb.append("  LeftOuterJoinCache: <error dumping cache> ").append(t.getMessage()).append("\n");
+        }
+        return sb.toString();
     }
 }

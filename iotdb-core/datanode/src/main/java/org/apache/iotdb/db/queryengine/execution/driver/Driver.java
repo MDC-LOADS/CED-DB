@@ -21,6 +21,8 @@ package org.apache.iotdb.db.queryengine.execution.driver;
 
 import org.apache.iotdb.commons.utils.FileUtils;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ResourceMonitor;
 import org.apache.iotdb.db.queryengine.execution.exchange.sink.ISink;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
@@ -73,6 +75,11 @@ public abstract class Driver implements IDriver {
   protected final DriverLock exclusiveLock = new DriverLock();
 
   private boolean isHighestPriority;
+
+  //for test
+  private int colQuery = 0;
+
+  private boolean iscolQuery = false;
 
   protected enum State {
     ALIVE,
@@ -227,6 +234,25 @@ public abstract class Driver implements IDriver {
   @SuppressWarnings({"squid:S1181", "squid:S112"})
   private ListenableFuture<?> processInternal() {
     long startTimeNanos = System.nanoTime();
+    if(QueryStateManager.isInitialized()) {
+      QueryStateManager queryStateManager = QueryStateManager.getInstance();
+      if (queryStateManager.getRootIdentitySinkId() != null
+              && queryStateManager.getRootIdentitySinkId().equals(root.getOperatorContext().getPlanNodeId().getId())) {
+        if(colQuery==20 && !iscolQuery){
+          try{
+            System.out.println("暂停0.5s吧");
+            Thread.sleep(500);
+          }catch (InterruptedException e){
+            Thread.currentThread().interrupt();
+          }
+          ResourceMonitor.startColQuery();
+          System.out.println("协同应在此处启动！！！");
+          iscolQuery = true;
+        }else{
+          colQuery++;
+        }
+      }
+    }
     try {
       ListenableFuture<?> blocked = root.isBlocked();
       if (!blocked.isDone()) {

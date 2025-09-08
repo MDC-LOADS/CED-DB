@@ -60,7 +60,9 @@ public class QueryStateManager {
 
   private volatile boolean hasLeftOuterJoin = false;//查询是否含有左外连接算子
 
-  private volatile TsBlock leftOuterJoinCache;//保存左外连接算子内的中间状态
+  private volatile TsBlock leftOuterJoinCacheLeft;//保存左外连接算子内的中间状态
+
+  private volatile TsBlock leftOuterJoinCacheRight;
 
   private String sql;
 
@@ -98,7 +100,6 @@ public class QueryStateManager {
 
   private volatile boolean canSendOffset = false;
 
-  private volatile boolean isRightCache =false;
 
   private OperatorClearManager operatorClearManager;
 
@@ -222,6 +223,10 @@ public class QueryStateManager {
    */
   public static QueryStateManager reinitialize() {
     return reinitialize(null);
+  }
+
+  public static ReadWriteLock getLock() {
+    return instance.lock;
   }
 
     public boolean isCanSendOffset() {
@@ -539,16 +544,25 @@ public class QueryStateManager {
     this.hasLeftOuterJoin = hasLeftOuterJoin;
   }
 
-  public TsBlock getLeftOuterJoinCache() {
-    return leftOuterJoinCache;
+  public TsBlock getLeftOuterJoinCacheLeft() {
+    return leftOuterJoinCacheLeft;
   }
 
-  public void setLeftOuterJoinCache(TsBlock leftOuterJoinCache) {
-    this.leftOuterJoinCache = leftOuterJoinCache;
+  public TsBlock getLeftOuterJoinCacheRight() {
+    return leftOuterJoinCacheRight;
+  }
+
+  public void setLeftOuterJoinCacheLeft(TsBlock leftOuterJoinCache) {
+    this.leftOuterJoinCacheLeft = leftOuterJoinCache;
+  }
+
+  public void setLeftOuterJoinCacheRight(TsBlock leftOuterJoinCache) {
+    this.leftOuterJoinCacheRight = leftOuterJoinCache;
   }
 
   public void clearLeftOuterJoinCache() {
-    this.leftOuterJoinCache = null;
+    this.leftOuterJoinCacheLeft = null;
+    this.leftOuterJoinCacheRight = null;
   }
 
   public String getLocalhostIp() {
@@ -647,14 +661,6 @@ public class QueryStateManager {
     }
   }
 
-    public boolean getIsRightCache() {
-        return isRightCache;
-    }
-
-    public void setIsRightCache(boolean isRightCache) {
-        this.isRightCache = isRightCache;
-    }
-
   @Override
   public String toString() {
     lock.readLock().lock();
@@ -667,7 +673,7 @@ public class QueryStateManager {
           + ", hasLeftOuterJoin="
           + hasLeftOuterJoin
           + ", leftOuterJoinCache="
-          + (leftOuterJoinCache != null ? "present" : "null")
+          + (leftOuterJoinCacheLeft != null ? "present" : "null")
           + '}';
     } finally {
       lock.readLock().unlock();
@@ -723,18 +729,18 @@ public class QueryStateManager {
 
       // Left outer join cache dump (assume value columns are double type as requested)
       sb.append("  HasLeftOuterJoin: ").append(hasLeftOuterJoin).append("\n");
-      if (leftOuterJoinCache == null) {
+      if (leftOuterJoinCacheLeft == null) {
         sb.append("  LeftOuterJoinCache: <null>\n");
       } else {
         try {
           sb.append("  LeftOuterJoinCache: present\n");
-          final int rowCount = leftOuterJoinCache.getPositionCount();
-          final org.apache.tsfile.block.column.Column[] valueColumns = leftOuterJoinCache.getValueColumns();
+          final int rowCount = leftOuterJoinCacheLeft.getPositionCount();
+          final org.apache.tsfile.block.column.Column[] valueColumns = leftOuterJoinCacheLeft.getValueColumns();
           final int colCount = valueColumns == null ? 0 : valueColumns.length;
           sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
 
           // time column
-          long[] times = leftOuterJoinCache.getTimeColumn() == null ? null : leftOuterJoinCache.getTimeColumn().getTimes();
+          long[] times = leftOuterJoinCacheLeft.getTimeColumn() == null ? null : leftOuterJoinCacheLeft.getTimeColumn().getTimes();
           if (times != null) {
             sb.append("    time:");
             for (int i = 0; i < rowCount; i++) {
@@ -763,6 +769,48 @@ public class QueryStateManager {
           }
         } catch (Throwable t) {
           sb.append("  LeftOuterJoinCache: <error dumping cache> ").append(t.getMessage()).append("\n");
+        }
+      }
+      if (leftOuterJoinCacheRight == null) {
+        sb.append("  LeftOuterJoinCacheRight: <null>\n");
+      } else {
+        try {
+          sb.append("  LeftOuterJoinCacheRight: present\n");
+          final int rowCount = leftOuterJoinCacheRight.getPositionCount();
+          final org.apache.tsfile.block.column.Column[] valueColumns = leftOuterJoinCacheRight.getValueColumns();
+          final int colCount = valueColumns == null ? 0 : valueColumns.length;
+          sb.append("    rows: ").append(rowCount).append(", valueColumns: ").append(colCount).append("\n");
+
+          // time column
+          long[] times = leftOuterJoinCacheRight.getTimeColumn() == null ? null : leftOuterJoinCacheRight.getTimeColumn().getTimes();
+          if (times != null) {
+            sb.append("    time:");
+            for (int i = 0; i < rowCount; i++) {
+              sb.append(i == 0 ? " [" : ", ").append(times[i]);
+            }
+            sb.append("]\n");
+          } else {
+            sb.append("    time: <null>\n");
+          }
+
+          // values (assume double)
+          for (int c = 0; c < colCount; c++) {
+            sb.append("    col").append(c).append(":");
+            org.apache.tsfile.block.column.Column col = valueColumns[c];
+            if (col == null) {
+              sb.append(" <null>\n");
+              continue;
+            }
+            sb.append(" [");
+            for (int r = 0; r < rowCount; r++) {
+              if (r > 0) sb.append(", ");
+              // as requested, assume double type
+              sb.append(col.getDouble(r));
+            }
+            sb.append("]\n");
+          }
+        } catch (Throwable t) {
+          sb.append("  LeftOuterJoinCacheRight: <error dumping cache> ").append(t.getMessage()).append("\n");
         }
       }
     } finally {

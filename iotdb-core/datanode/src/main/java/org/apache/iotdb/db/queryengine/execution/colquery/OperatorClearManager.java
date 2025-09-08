@@ -39,12 +39,14 @@ public class OperatorClearManager {
                 System.out.println("✅ ALL FINISHED");
                 QueryStateManager queryStateManager = QueryStateManager.getInstance();
                 queryStateManager.getStateMachine().transitionToClosed();
+//                QueryStateManager.getLock().readLock().unlock();
             }
         }
     }
 
     /** 查询某个算子是否清空 */
     public boolean isCleared(String planNodeId) {
+
         return clearedMap.getOrDefault(planNodeId, false);
     }
 

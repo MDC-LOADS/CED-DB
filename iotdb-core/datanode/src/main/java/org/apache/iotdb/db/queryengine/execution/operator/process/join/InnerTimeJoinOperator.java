@@ -372,7 +372,8 @@ public class InnerTimeJoinOperator implements ProcessOperator {
     public boolean hasNext() throws Exception {
         if(QueryStateManager.isInitialized()){
             QueryStateManager queryStateManager = QueryStateManager.getInstance();
-            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
+            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED
+                    && !queryStateManager.getOperatorClearManager().isCleared("InnerJoin")){
                 //清空全部中间状态
                 Arrays.fill(inputIndex, 0);
                 Arrays.fill(inputTsBlocks, null);
@@ -502,7 +503,7 @@ public class InnerTimeJoinOperator implements ProcessOperator {
                 stateManager.setScanStates(scanPath, scanStates);
             }
 
-            if (inputTsBlocks[i] == null) {
+            if (inputTsBlocks[i] == null || inputTsBlocks[i].getPositionCount() == inputIndex[i]) {
                 // Case 1: inputTsBlocks[i] is empty
                 // Set offset to current scanTimestamp and isCouldEqual to false
                 stateManager.updateScanOffset(scanPath, scanStates.getScanTimestamp());

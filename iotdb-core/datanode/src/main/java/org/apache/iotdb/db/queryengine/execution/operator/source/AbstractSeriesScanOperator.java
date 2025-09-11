@@ -23,6 +23,7 @@ import org.apache.iotdb.commons.path.PartialPath;
 import org.apache.iotdb.db.queryengine.execution.QueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.LocalSourceHandle;
 import org.apache.iotdb.db.queryengine.execution.fragment.FragmentInstanceContext;
@@ -73,8 +74,8 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
     }
 
     private void setScanTimestamp(TsBlock res) {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        QueryStateManager queryStateManager = getSession();
+        if(queryStateManager != null){
             System.out.println("待设置偏移量 scan，id为"+sourceId.getId());
             if(queryStateManager.isHasSeriesPath(sourceId.getId())
                     && !queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
@@ -93,14 +94,14 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
     @SuppressWarnings("squid:S112")
     @Override
     public boolean hasNext() throws Exception {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
-            while (queryStateManager.getStateMachine().getState()==ColQueryState.COL_QUERY){
+        QueryStateManager queryStateManager = getSession();
+        if(queryStateManager != null){
+            if (queryStateManager.getStateMachine().getState()==ColQueryState.COL_QUERY){
                 try {
-                    Thread.sleep(10);
-                    System.out.println("等待协同完成");
-                }catch (InterruptedException e){
-                    e.printStackTrace();
+                    queryStateManager.getStateMachine().getStateChange(ColQueryState.COL_QUERY).get();
+                }catch (InterruptedException ie){
+                    Thread.currentThread().interrupt();
+                }catch (java.util.concurrent.ExecutionException ee){
                 }
             }
             if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
@@ -151,7 +152,7 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
                     newScanOptions = builder.build();
                     FragmentInstanceContext context = this.seriesScanUtil.context;
                     this.seriesScanUtil = new SeriesScanUtil(seriesPath, scanOrder, newScanOptions, context,dataSource);
-                    queryStateManager.getOperatorClearManager().clearOperator(operatorContext.getPlanNodeId().getId());
+                    queryStateManager.getOperatorClearManager().clearOperator(getColQueryId(),operatorContext.getPlanNodeId().getId());
                 }
             }
         }
@@ -188,6 +189,16 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
         } catch (IOException e) {
             throw new RuntimeException("Error happened while scanning the file", e);
         }
+    }
+
+    private String getColQueryId() {
+        String edgeQueryId = operatorContext.getInstanceContext().getId().getQueryId().getId();
+        int dataNodeId = org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+        return edgeQueryId + "-" + dataNodeId;
+    }
+
+    private QueryStateManager getSession() {
+        return ColQuerySessions.getByEdgeQueryId(getColQueryId());
     }
 
     private boolean readFileData() throws IOException {

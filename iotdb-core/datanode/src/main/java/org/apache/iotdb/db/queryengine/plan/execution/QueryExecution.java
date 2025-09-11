@@ -29,9 +29,11 @@ import org.apache.iotdb.db.exception.query.KilledByOthersException;
 import org.apache.iotdb.db.exception.query.QueryTimeoutRuntimeException;
 import org.apache.iotdb.db.queryengine.common.FragmentInstanceId;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
+import org.apache.iotdb.db.queryengine.common.QueryId;
 import org.apache.iotdb.db.queryengine.common.header.DatasetHeader;
 import org.apache.iotdb.db.queryengine.execution.QueryState;
 import org.apache.iotdb.db.queryengine.execution.QueryStateMachine;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryStateMachine;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.colquery.ResourceMonitor;
@@ -172,12 +174,19 @@ public class QueryExecution implements IQueryExecution {
         doLogicalPlan();
 
         if(!this.logicalPlan.getContext().getSql().contains("Fetch Schema")){
+            // 生成边端 colQueryId = edgeQueryId + '-' + dataNodeId
+            String edgeQueryId = context.getQueryId().getId();
+            int dataNodeId = IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+            String colQueryId = edgeQueryId + "-" + dataNodeId;
 
-            QueryStateManager stateManager = QueryStateManager.initialize();
+            // 为本查询创建独立会话并设置为当前线程上下文
+            QueryStateManager stateManager = ColQuerySessions.create(colQueryId);
+
             ExecutorService executor = Executors.newSingleThreadExecutor();
-            ColQueryStateMachine colQueryStateMachine = new ColQueryStateMachine(context.getQueryId().getId(), executor);
+            ColQueryStateMachine colQueryStateMachine = new ColQueryStateMachine(colQueryId, executor);
             stateManager.setStateMachine(colQueryStateMachine);
-            stateManager.setQueryId(context.getQueryId());
+            // 使用 IoTDB 原始 QueryId，协同通道 id 单独保存，避免非法 id 格式
+            stateManager.setQueryId(colQueryId);
             stateManager.setSql(context.getSql());
             if (logicalPlan.getRootNode() instanceof SeriesScanNode) {
                 stateManager.setSingleScan(true);
@@ -330,7 +339,10 @@ public class QueryExecution implements IQueryExecution {
 
         System.out.println("\n-----------\ngetType:"+distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType());
         if(distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion) {
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+            String edgeQueryId = context.getQueryId().getId();
+            int dataNodeId = IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+            String colQueryId = edgeQueryId + "-" + dataNodeId;
+            QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
             //设置根节点
             queryStateManager.setRootIdentitySinkId(distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
             System.out.println("\nFragmentInstances:"+printFragmentInstances(distributedPlan.getInstances()));

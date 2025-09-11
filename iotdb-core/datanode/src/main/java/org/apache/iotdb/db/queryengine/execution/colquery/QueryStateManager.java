@@ -34,6 +34,7 @@ import org.apache.tsfile.read.common.block.TsBlock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -92,13 +93,14 @@ public class QueryStateManager {
 
   private static final int remotePort = 10744;
 
-  private QueryId colQueryId;//协同查询的id
+  private String colQueryId;//协同查询的id
 
   private static final String colPlanNodeId = "colPlanNodeId";
 
   private volatile boolean isSingleScan = false;
 
   private volatile boolean canSendOffset = false;
+  private volatile CompletableFuture<Void> canSendOffsetFuture = new CompletableFuture<>();
 
 
   private OperatorClearManager operatorClearManager;
@@ -106,144 +108,56 @@ public class QueryStateManager {
   private final ConcurrentHashMap<String,ISourceHandle> scanSourceHandles = new ConcurrentHashMap<>();//PlanNodeId->ISourceHandle
 
 
-  // ========== 单例模式实现 ==========
 
-  private static volatile QueryStateManager instance;
-  private static final Object lock_singleton = new Object();
 
-  /** 私有构造函数，防止外部直接实例化 */
-  private QueryStateManager(ColQueryStateMachine stateMachine) {
-    this.stateMachine = stateMachine;
-    this.colQueryId = new QueryId("null");
-    this.edgeFragmentId = 1000;
-  }
-
-  private QueryStateManager() {
+  public QueryStateManager() {
     this.stateMachine = null;
-    this.colQueryId = new QueryId("null");
+    this.colQueryId = "null";
     this.edgeFragmentId = 1000;
   }
 
   private QueryStateManager(ColQueryStateMachine stateMachine, String queryId) {
     this.stateMachine = stateMachine;
-    this.colQueryId =new QueryId(queryId);
+    this.colQueryId =queryId;
     this.edgeFragmentId = 1000;
   }
-  /**
-   * 获取QueryStateManager的单例实例
-   *
-   * @return QueryStateManager的单例实例
-   * @throws IllegalStateException 如果单例尚未初始化
-   */
-  public static QueryStateManager getInstance() {
-    if (instance == null) {
-      throw new IllegalStateException(
-          "QueryStateManager has not been initialized. Please call initialize() first.");
-    }
-    return instance;
+
+  public ReadWriteLock getLock() {
+    return this.lock;
   }
 
-  /**
-   * 初始化QueryStateManager单例 应该在系统启动时调用一次
-   *
-   * @param stateMachine 可选的ColQueryStateMachine，可以为null
-   * @return 初始化的QueryStateManager实例
-   */
-  public static QueryStateManager initialize(ColQueryStateMachine stateMachine) {
-    if (instance == null) {
-      synchronized (lock_singleton) {
-        if (instance == null) {
-          instance = new QueryStateManager(stateMachine);
+  public boolean isCanSendOffset() {
+      return canSendOffset;
+  }
+
+  public void setCanSendOffset(boolean canSendOffset) {
+      this.canSendOffset = canSendOffset;
+      if (canSendOffset) {
+        synchronized (this) {
+          if (!canSendOffsetFuture.isDone()) {
+            canSendOffsetFuture.complete(null);
+          }
+        }
+      } else {
+        // reset future for next round
+        synchronized (this) {
+          canSendOffsetFuture = new CompletableFuture<>();
         }
       }
-    }else {
-      instance.resetStates();
-      instance = null;
-      synchronized (lock_singleton) {
-        if (instance == null) {
-          instance = new QueryStateManager(stateMachine);
-        }
-      }
-    }
-    return instance;
   }
 
-  public static QueryStateManager initialize(ColQueryStateMachine stateMachine, String queryId) {
-    if (instance == null) {
-      synchronized (lock_singleton) {
-        if (instance == null) {
-          instance = new QueryStateManager(stateMachine,queryId);
-        }
-      }
-    }
-    return instance;
+  public CompletableFuture<Void> getCanSendOffsetFuture() {
+    return canSendOffsetFuture;
   }
 
-  /**
-   * 使用默认参数初始化QueryStateManager单例 应该在系统启动时调用一次
-   *
-   * @return 初始化的QueryStateManager实例
-   */
-  public static QueryStateManager initialize() {
-    return initialize(null);
+  public String getSql() {
+    return sql;
   }
 
-  /**
-   * 检查单例是否已经初始化
-   *
-   * @return true如果已初始化，false如果未初始化
-   */
-  public static boolean isInitialized() {
-    return instance != null;
+  public void setSql(String sql) {
+    this.sql = sql;
   }
 
-  /** 重置单例实例，主要用于测试场景 注意：这个方法会清除所有状态数据 */
-  public static synchronized void reset() {
-    if (instance != null) {
-      instance.resetStates();
-      instance = null;
-    }
-  }
-
-  /**
-   * 重新初始化单例，主要用于测试场景
-   *
-   * @param stateMachine 新的ColQueryStateMachine
-   * @return 重新初始化的QueryStateManager实例
-   */
-  public static QueryStateManager reinitialize(ColQueryStateMachine stateMachine) {
-    reset();
-    return initialize(stateMachine);
-  }
-
-  /**
-   * 重新初始化单例，使用默认参数，主要用于测试场景
-   *
-   * @return 重新初始化的QueryStateManager实例
-   */
-  public static QueryStateManager reinitialize() {
-    return reinitialize(null);
-  }
-
-  public static ReadWriteLock getLock() {
-    return instance.lock;
-  }
-
-    public boolean isCanSendOffset() {
-        return canSendOffset;
-    }
-
-    public void setCanSendOffset(boolean canSendOffset) {
-        this.canSendOffset = canSendOffset;
-    }
-
-    public String getSql() {
-        return sql;
-    }
-
-    public void setSql(String sql) {
-        this.sql = sql;
-    }
 
     /** Inner class representing states for scan operators */
   public static class ScanStates {
@@ -354,7 +268,7 @@ public class QueryStateManager {
     }
   }
 
-  public QueryId getQueryId() {
+  public String getQueryId() {
     lock.readLock().lock();
     try {
       return colQueryId;
@@ -363,7 +277,7 @@ public class QueryStateManager {
     }
   }
 
-  public void setQueryId(QueryId queryId) {
+  public void setQueryId(String queryId) {
     lock.writeLock().lock();
     try {
       this.colQueryId = queryId;
@@ -624,8 +538,8 @@ public class QueryStateManager {
   //创建并建立SourceHandle
   public void createAndSetSourceHandle() {
     TEndPoint remoteEndpoint = new TEndPoint(remoteIp, remotePort);
-    TFragmentInstanceId localFragmentInstanceId = new TFragmentInstanceId(colQueryId.getId(),edgeFragmentId,"0");
-    TFragmentInstanceId remoteFragmentInstanceId = new TFragmentInstanceId(colQueryId.getId(),cloudFragmentId,"0");
+    TFragmentInstanceId localFragmentInstanceId = new TFragmentInstanceId(colQueryId,edgeFragmentId,"0");
+    TFragmentInstanceId remoteFragmentInstanceId = new TFragmentInstanceId(colQueryId,cloudFragmentId,"0");
     long queryNum=1;
     FragmentInstanceContext colQueryInstanceContext = new FragmentInstanceContext(queryNum);
     this.sourceHandle = MPP_DATA_EXCHANGE_MANAGER.createSourceHandle(
@@ -691,7 +605,7 @@ public class QueryStateManager {
       // Basic query info
       sb.append("  SQL: ").append(sql == null ? "<null>" : sql).append("\n");
       sb.append("  QueryId: ")
-          .append(colQueryId == null ? "<null>" : colQueryId.getId())
+          .append(colQueryId == null ? "<null>" : colQueryId)
           .append("\n");
       sb.append("  StateMachine: ")
           .append(stateMachine != null ? stateMachine.getState() : "<null>")

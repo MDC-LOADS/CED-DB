@@ -20,139 +20,94 @@ public class ServiceImpl implements C2EColService.Iface{
 
 
     @Override
-    public void ACKMessage(int cloudFragmentId) throws TException {
+    public void ACKMessage(String colQueryId, int cloudFragmentId) throws TException {
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if (queryStateManager == null) {
+            return;
+        }
+        // 切换至同步索引
+        queryStateManager.getStateMachine().transitionToPreColQuery();
 
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        queryStateManager.getStateMachine().transitionToPreColQuery();//切换至同步索引
-        QueryStateManager.getLock().readLock().lock();
-        List<QueryStateManager.ScanStates>  scanStates =null;
-        List<String> seriesPaths=null;
-        List<String> planNodeIds=null;
-        try{
+        // 快照获取当前各扫描状态
+        queryStateManager.getLock().readLock().lock();
+        List<QueryStateManager.ScanStates> scanStates;
+        List<String> seriesPaths;
+        List<String> planNodeIds;
+        try {
             scanStates = queryStateManager.getAllScanStatesList();
             seriesPaths = queryStateManager.getAllScanPathList();
             planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
-        }finally {
-            QueryStateManager.getLock().readLock().unlock();
+        } finally {
+            queryStateManager.getLock().readLock().unlock();
         }
 
+        // 建立边→云数据通道
         queryStateManager.setCloudFragmentId(cloudFragmentId);
         int edgeFragmentId = queryStateManager.getAndAddEdgeFragmentId();
         queryStateManager.createAndSetSourceHandle();
+
+        // 等待根 IdentitySink 上报 offset 允许发送
         try {
-            while (!queryStateManager.isCanSendOffset()){
-                System.out.println("\n等待IdentitySink中");
-                Thread.sleep(10);
-            }
-            System.out.println("\n等待IdentitySink完成");
-        }catch (Exception e){
-            System.out.println("\n等待IdentitySink失败");
+            queryStateManager.getCanSendOffsetFuture().get();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        } catch (java.util.concurrent.ExecutionException e) {
+            // ignore; let flow continue or add logging if needed
         }
         queryStateManager.setCanSendOffset(false);
-        if(queryStateManager.isSingleScan()){
-//            String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
-//            QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
-            long offset = scanStates.get(0).getOffset();
+
+        // 回传索引/缓存到云
+        if (queryStateManager.isSingleScan()) {
+            long offset = scanStates.get(0).getScanTimestamp();
             String seriesPath = queryStateManager.getSeriesPath(planNodeIds.get(0));
-            callAnsMessageWithSingleScan(edgeFragmentId,planNodeIds.get(0),offset,seriesPath,false);
+            callAnsMessageWithSingleScan(colQueryId, edgeFragmentId, planNodeIds.get(0), offset, seriesPath, false);
             queryStateManager.getStateMachine().transitionToColQuery();
-        }else {
-            int i=0;
+        } else {
             Map<String, ScanInfo> scanInfoMap = new HashMap<>();
-            for(QueryStateManager.ScanStates scanState:scanStates)
-            {
-                ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanState,seriesPaths.get(i));
-                scanInfoMap.put(planNodeIds.get(i),scanInfo);
-                i++;
+            for (int i = 0; i < scanStates.size(); i++) {
+                ScanInfo scanInfo = ScanInfoConverter.convertToScanInfo(scanStates.get(i), seriesPaths.get(i));
+                scanInfoMap.put(planNodeIds.get(i), scanInfo);
             }
-            if(queryStateManager.hasLeftOuterJoin()){
+            if (queryStateManager.hasLeftOuterJoin()) {
                 TsBlock cacheLeft = queryStateManager.getLeftOuterJoinCacheLeft();
                 TsBlock cacheRight = queryStateManager.getLeftOuterJoinCacheRight();
-                ScanInfoConverter.TsBlockColumns valueColumnsLeft=ScanInfoConverter.convertTsBlockToColumns(cacheLeft);
-                ScanInfoConverter.TsBlockColumns valueColumnsRight=ScanInfoConverter.convertTsBlockToColumns(cacheRight);
-                if(valueColumnsRight==null && valueColumnsLeft!=null){
-                    callAnsMessageWithLeftOuterJoin(edgeFragmentId,scanInfoMap,valueColumnsLeft.getTimeColumn(),valueColumnsLeft.getValueColumns(),new TimeColumn(),new ArrayList<>());
+                ScanInfoConverter.TsBlockColumns valueColumnsLeft = ScanInfoConverter.convertTsBlockToColumns(cacheLeft);
+                ScanInfoConverter.TsBlockColumns valueColumnsRight = ScanInfoConverter.convertTsBlockToColumns(cacheRight);
+                if (valueColumnsRight == null && valueColumnsLeft != null) {
+                    callAnsMessageWithLeftOuterJoin(
+                            colQueryId, edgeFragmentId, scanInfoMap,
+                            valueColumnsLeft.getTimeColumn(), valueColumnsLeft.getValueColumns(),
+                            new TimeColumn(), new ArrayList<>());
+                } else if (valueColumnsLeft == null && valueColumnsRight != null) {
+                    callAnsMessageWithLeftOuterJoin(
+                            colQueryId, edgeFragmentId, scanInfoMap,
+                            new TimeColumn(), new ArrayList<>(),
+                            valueColumnsRight.getTimeColumn(), valueColumnsRight.getValueColumns());
+                } else if (valueColumnsLeft == null) {
+                    callAnsMessageWithLeftOuterJoin(
+                            colQueryId, edgeFragmentId, scanInfoMap,
+                            new TimeColumn(), new ArrayList<>(),
+                            new TimeColumn(), new ArrayList<>());
+                } else {
+                    callAnsMessageWithLeftOuterJoin(
+                            colQueryId, edgeFragmentId, scanInfoMap,
+                            valueColumnsLeft.getTimeColumn(), valueColumnsLeft.getValueColumns(),
+                            valueColumnsRight.getTimeColumn(), valueColumnsRight.getValueColumns());
                 }
-                else if(valueColumnsLeft==null && valueColumnsRight!=null){
-                    callAnsMessageWithLeftOuterJoin(edgeFragmentId,scanInfoMap,new TimeColumn(),new ArrayList<>(),valueColumnsRight.getTimeColumn(),valueColumnsRight.getValueColumns());
-
-                }
-                else if(valueColumnsLeft == null){
-                    callAnsMessageWithLeftOuterJoin(edgeFragmentId,scanInfoMap,new TimeColumn(),new ArrayList<>(),new TimeColumn(),new ArrayList<>());
-                }
-                else {
-                    callAnsMessageWithLeftOuterJoin(edgeFragmentId,scanInfoMap,valueColumnsLeft.getTimeColumn(),valueColumnsLeft.getValueColumns(),valueColumnsRight.getTimeColumn(),valueColumnsRight.getValueColumns());
-                }
-                System.out.println("协同发送给left的数据"+queryStateManager.getStateSummary());
                 queryStateManager.getStateMachine().transitionToColQuery();
-            }else{
-                System.out.println("将要发送的索引为："+queryStateManager.getStateSummary());
-                callAnsMessage(edgeFragmentId,scanInfoMap);
+            } else {
+                callAnsMessage(colQueryId, edgeFragmentId, scanInfoMap);
                 queryStateManager.getStateMachine().transitionToColQuery();
             }
         }
 
-        //for test
-//        AckMessageTestForAnsMessage(cloudFragmentId);
-//        AckMessageTestForAnsMessageWithSingleScan(cloudFragmentId);
-//        AckMessageTestForAnsMessageWithLeftJoin(cloudFragmentId);
     }
 
-    public void AckMessageTestForAnsMessage(int cloudFragmentId) throws TException {
-        //for test
-        Map<String,ScanInfo> map = new HashMap<>();
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        queryStateManager.setCloudFragmentId(cloudFragmentId);
-        queryStateManager.getAndAddEdgeFragmentId();
-        queryStateManager.createAndSetSourceHandle();
-        queryStateManager.getStateMachine().transitionToPreColQuery();
-//        map.put("4", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t2",true,false,true));
-//        map.put("5", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t1",true,false,true));
-        map.put("7",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t4",true,false,true));
-        map.put("8",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t3",true,false,true));
-        map.put("9",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t5",true,false,true));
-        map.put("10",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t2",true,false,true));
-        map.put("11",new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t1",true,false,true));
-
-        callAnsMessage(queryStateManager.getEdgeFragmentId(), map);
-        System.out.println("\nACKMessage success");
-        queryStateManager.getStateMachine().transitionToColQuery();
-    }
-
-    public void AckMessageTestForAnsMessageWithLeftJoin(int cloudFragmentId) throws TException {
-        //for test
-        Map<String,ScanInfo> map = new HashMap<>();
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        queryStateManager.setCloudFragmentId(cloudFragmentId);
-        queryStateManager.getAndAddEdgeFragmentId();
-        queryStateManager.createAndSetSourceHandle();
-        queryStateManager.getStateMachine().transitionToPreColQuery();
-        map.put("13", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t2",true,true,false));
-        map.put("14", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t1",true,true,false));
-        map.put("15", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t4",true,false,true));
-        map.put("16", new ScanInfo(1756819812635L,"root.ln.wf01.wt02.t3",true,false,true));
-        TimeColumn timeColumn = new TimeColumn();
-        List<Column> valueColumns = new ArrayList<>();
-        callAnsMessageWithLeftOuterJoin(queryStateManager.getEdgeFragmentId(), map,timeColumn,valueColumns,timeColumn,valueColumns);
-        System.out.println("\nACKMessage success");
-        queryStateManager.getStateMachine().transitionToColQuery();
-    }
-
-    public void AckMessageTestForAnsMessageWithSingleScan(int cloudFragmentId) throws TException {
-        //for test
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        queryStateManager.setCloudFragmentId(cloudFragmentId);
-        queryStateManager.getAndAddEdgeFragmentId();
-        queryStateManager.createAndSetSourceHandle();
-        queryStateManager.getStateMachine().transitionToPreColQuery();
-        callAnsMessageWithSingleScan(queryStateManager.getEdgeFragmentId(), "1",1756819812635L,"root.ln.wf01.wt02.t1",false);
-        System.out.println("\nACKMessage with Single Scan success");
-        queryStateManager.getStateMachine().transitionToColQuery();
-    }
 
     @Override
-    public void ColQueryCloseWithLeftOuterJoin(Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft, TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
-        QueryStateManager queryStateManager=QueryStateManager.getInstance();
+    public void ColQueryCloseWithLeftOuterJoin(String colQueryId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft, TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if (queryStateManager == null) return;
         while(!queryStateManager.getSourceHandle().isFinished()){
             try{
                 Thread.sleep(10);
@@ -239,8 +194,9 @@ public class ServiceImpl implements C2EColService.Iface{
     }
 
     @Override
-    public void ColQueryClose(Map<String, ScanInfo> scanInfoMap) throws TException {
-        QueryStateManager queryStateManager=QueryStateManager.getInstance();
+    public void ColQueryClose(String colQueryId, Map<String, ScanInfo> scanInfoMap) throws TException {
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if (queryStateManager == null) return;
         while(!queryStateManager.getSourceHandle().isFinished()){
             try{
                 Thread.sleep(10);
@@ -293,12 +249,13 @@ public class ServiceImpl implements C2EColService.Iface{
         }
         queryStateManager.setOperatorClearManager(planNodeIds);
         queryStateManager.getStateMachine().transitionToPreClosed();
-//        QueryStateManager.getLock().readLock().lock();
+
     }
 
     @Override
-    public void ColQueryCloseWithSingleScan(String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
-        QueryStateManager queryStateManager=QueryStateManager.getInstance();
+    public void ColQueryCloseWithSingleScan(String colQueryId, String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if (queryStateManager == null) return;
         while(!queryStateManager.getSourceHandle().isFinished()){
             try{
                 Thread.sleep(10);
@@ -322,37 +279,37 @@ public class ServiceImpl implements C2EColService.Iface{
         queryStateManager.getStateMachine().transitionToPreClosed();
     }
 
-    public void callAnsMessageWithLeftOuterJoin(int edgeFragmentId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft,TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
+    public void callAnsMessageWithLeftOuterJoin(String colQueryId, int edgeFragmentId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft,TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
         try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
             TProtocol protocol = new TBinaryProtocol(transport);
             E2CColService.Client client = new E2CColService.Client(protocol);
             transport.open();
             // 调用服务方法
-            client.AnsMessageWithLeftOuterJoin(edgeFragmentId, scanInfoMap, timeColumnLeft, valueColumnsLeft, timeColumnRight, valueColumnsRight);
+            client.AnsMessageWithLeftOuterJoin(colQueryId, edgeFragmentId, scanInfoMap, timeColumnLeft, valueColumnsLeft, timeColumnRight, valueColumnsRight);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
         } catch (TException x) {
             x.printStackTrace();
         }
     }
-    public void callAnsMessage(int edgeFragmentId, Map<String, ScanInfo> scanInfoMap) throws TException {
+    public void callAnsMessage(String colQueryId, int edgeFragmentId, Map<String, ScanInfo> scanInfoMap) throws TException {
         try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
             TProtocol protocol = new TBinaryProtocol(transport);
             E2CColService.Client client = new E2CColService.Client(protocol);
             transport.open();
             // 调用服务方法
-            client.AnsMessage(edgeFragmentId, scanInfoMap);
+            client.AnsMessage(colQueryId, edgeFragmentId, scanInfoMap);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
         } catch (TException x) {
             x.printStackTrace();
         }
     }
-    public void callAnsMessageWithSingleScan(int edgeFragmentId, String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
+    public void callAnsMessageWithSingleScan(String colQueryId, int edgeFragmentId, String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
         try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
             TProtocol protocol = new TBinaryProtocol(transport);
             E2CColService.Client client = new E2CColService.Client(protocol);
             transport.open();
             // 调用服务方法
-            client.AnsMessageWithSingleScan(edgeFragmentId, planNodeId, offset, seriesPath, isCloudEqual);
+            client.AnsMessageWithSingleScan(colQueryId, edgeFragmentId, planNodeId, offset, seriesPath, isCloudEqual);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
         } catch (TException x) {
             x.printStackTrace();

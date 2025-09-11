@@ -25,53 +25,59 @@ public class ResourceMonitor {
 
     public void startResourceMonitor() {
         //TODO:是否可以协同查询
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        ColQueryStateMachine stateMachine = queryStateManager.getStateMachine();
-        if(couldColQuery && stateMachine.getState() == ColQueryState.CLOSED){
-            //TODO:调用启动程序
-            Thread queryExecution = new Thread(new StartColQuery());
-            queryExecution.start();
-            return;
-        } else if (!couldColQuery && stateMachine.getState() == ColQueryState.COL_QUERY) {
-            queryStateManager.getStateMachine().transitionToPreClosed();
-            //TODO:调用关闭程序
-            return;
-        }
+//        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+//        ColQueryStateMachine stateMachine = queryStateManager.getStateMachine();
+//        if(couldColQuery && stateMachine.getState() == ColQueryState.CLOSED){
+//            //TODO:调用启动程序
+//            Thread queryExecution = new Thread(new StartColQuery());
+//            queryExecution.start();
+//            return;
+//        } else if (!couldColQuery && stateMachine.getState() == ColQueryState.COL_QUERY) {
+//            queryStateManager.getStateMachine().transitionToPreClosed();
+//            //TODO:调用关闭程序
+//            return;
+//        }
     }
 
-    public static void startColQuery(){
+    public static void startColQuery(String sql,String colQueryId) {
 
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+//        QueryStateManager queryStateManager = QueryStateManager.getInstance();
         try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
             TProtocol protocol = new TBinaryProtocol(transport);
             E2CColService.Client client = new E2CColService.Client(protocol);
             transport.open();
-            // 调用服务方法
-            client.ColQueryStart(queryStateManager.getSql(), queryStateManager.getQueryId().getId());
+            // 调用服务方法，使用协同通道 id（edgeQueryId-dataNodeId）
+            client.ColQueryStart(sql, colQueryId);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
         } catch (TException x) {
             x.printStackTrace();
         }
         System.out.println("协同查询状态机变为启动啦");
-        queryStateManager.getStateMachine().transitionToStart();
-
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if(queryStateManager != null) {
+            queryStateManager.getStateMachine().transitionToStart();
+        }
     }
+
 
     static class StartColQuery implements Runnable {
         @Override
         public void run() {
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
-            try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
-                TProtocol protocol = new TBinaryProtocol(transport);
-                E2CColService.Client client = new E2CColService.Client(protocol);
-                transport.open();
-                // 调用服务方法
-                client.ColQueryStart(queryStateManager.getSql(), queryStateManager.getQueryId().getId());
-//            System.out.println("ansData:"+SourceId+" sent successfully.");
-            } catch (TException x) {
-                x.printStackTrace();
-            }
-            queryStateManager.getStateMachine().transitionToStart();
+//            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+//            try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
+//                TProtocol protocol = new TBinaryProtocol(transport);
+//                E2CColService.Client client = new E2CColService.Client(protocol);
+//                transport.open();
+//                // 调用服务方法
+//                String edgeQueryId = queryStateManager.getQueryId().getId();
+//                int dataNodeId = org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+//                String colQueryId = edgeQueryId + "-" + dataNodeId;
+//                client.ColQueryStart(queryStateManager.getSql(), colQueryId);
+////            System.out.println("ansData:"+SourceId+" sent successfully.");
+//            } catch (TException x) {
+//                x.printStackTrace();
+//            }
+//            queryStateManager.getStateMachine().transitionToStart();
 
         }
     }

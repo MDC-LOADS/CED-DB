@@ -23,7 +23,7 @@ public class OperatorClearManager {
     }
 
     /** 清空某个算子 */
-    public void clearOperator(String planNodeId) {
+    public void clearOperator(String colQueryId,String planNodeId) {
         Boolean prev = clearedMap.get(planNodeId);
         if (prev == null) {
             throw new IllegalArgumentException("未知的 planNodeId: " + planNodeId);
@@ -37,9 +37,10 @@ public class OperatorClearManager {
 
             if (finished == totalOperators) {
                 System.out.println("✅ ALL FINISHED");
-                QueryStateManager queryStateManager = QueryStateManager.getInstance();
-                queryStateManager.getStateMachine().transitionToClosed();
-//                QueryStateManager.getLock().readLock().unlock();
+                QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+                if(queryStateManager != null) {
+                    queryStateManager.getStateMachine().transitionToClosed();
+                }
             }
         }
     }

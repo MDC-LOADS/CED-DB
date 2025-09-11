@@ -22,6 +22,7 @@ package org.apache.iotdb.db.queryengine.execution.operator.source;
 import org.apache.iotdb.commons.path.PartialPath;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNodeId;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.parameter.SeriesScanOptions;
@@ -52,8 +53,10 @@ public class SeriesScanOperator extends AbstractSeriesScanOperator {
         this.maxReturnSize =
                 Math.min(maxReturnSize, TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
         //添加当前scan路径和sourceId
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager stateManager = QueryStateManager.getInstance();
+        QueryStateManager stateManager = ColQuerySessions.getByEdgeQueryId(
+                operatorContext.getInstanceContext().getId().getQueryId().getId() + "-" +
+                        org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId());
+        if(stateManager != null){
             stateManager.setSeriesPathAndPlanNodeId(this.sourceId.getId(),this.seriesScanUtil.seriesPath.toString());
             stateManager.setScanPathExchangeByPlanNodeId(operatorContext.getPlanNodeId().getId(),
                         operatorContext.getDriverContext().getOperatorContexts().size() == 1);

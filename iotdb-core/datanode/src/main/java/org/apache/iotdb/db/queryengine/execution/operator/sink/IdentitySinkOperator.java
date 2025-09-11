@@ -23,6 +23,7 @@ import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.ResourceMonitor;
 import org.apache.iotdb.db.queryengine.execution.exchange.sink.DownStreamChannelIndex;
 import org.apache.iotdb.db.queryengine.execution.exchange.sink.ISinkHandle;
@@ -66,42 +67,53 @@ public class IdentitySinkOperator implements Operator {
         this.sinkHandle = sinkHandle;
     }
 
+    private String getColQueryId() {
+        String edgeQueryId = operatorContext.getInstanceContext().getId().getQueryId().getId();
+        int dataNodeId = org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+        return edgeQueryId + "-" + dataNodeId;
+    }
+
+    private QueryStateManager getSession() {
+        return ColQuerySessions.getByEdgeQueryId(getColQueryId());
+    }
+
     @Override
     public boolean hasNext() throws Exception {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        QueryStateManager queryStateManager = getSession();
+        if (queryStateManager != null) {
             if(queryStateManager.getRootIdentitySinkId()!=null
                     && queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY
                     && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
                 queryStateManager.setCanSendOffset(true);
-                while(queryStateManager.getStateMachine().getState() != ColQueryState.COL_QUERY){
-                    try {
-                        Thread.sleep(10);
-                        System.out.println("等待COL_QUERY中："+queryStateManager.getStateMachine().getState());
-                    }catch (InterruptedException e){
-                        e.printStackTrace();
-                    }
+                try {
+                    // 等待 PRE_COL_QUERY -> 下一状态（期望 COL_QUERY）
+                    queryStateManager.getStateMachine()
+                            .getStateChange(ColQueryState.PRE_COL_QUERY)
+                            .get();
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                } catch (java.util.concurrent.ExecutionException ee) {
+                    // ignore, let following logic proceed
                 }
             }
-        }
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+
             if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY
                     && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
                 ISourceHandle sourceHandle = queryStateManager.getSourceHandle();
-                if(!sourceHandle.isFinished()){
-                    return true;//如果已经打开通道开始传输数据了，返回还有数据
-                }else {
-                    while(queryStateManager.getStateMachine().getState() != ColQueryState.PRE_CLOSED){
-                        try{
-                            Thread.sleep(10);
-                        }catch (InterruptedException e){
-                            e.printStackTrace();
-                        }
+                if(sourceHandle != null && !sourceHandle.isFinished()){
+                    return true;//已经打开通道开始传输
+                } else {
+                    try {
+                        // 等待 COL_QUERY -> PRE_CLOSED
+                        queryStateManager.getStateMachine()
+                                .getStateChange(ColQueryState.COL_QUERY)
+                                .get();
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    } catch (java.util.concurrent.ExecutionException ee) {
                     }
                 }
-                //TODO:进入重启阶段
-
+                // TODO: 进入重启阶段（如有需要）
             }
         }
         int currentIndex = downStreamChannelIndex.getCurrentIndex();
@@ -141,8 +153,8 @@ public class IdentitySinkOperator implements Operator {
 
     @Override
     public TsBlock next() throws Exception {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        QueryStateManager queryStateManager = getSession();
+        if(queryStateManager != null){
             if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
                 System.out.println(queryStateManager.getStateSummary());
                 if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY) {
@@ -183,8 +195,8 @@ public class IdentitySinkOperator implements Operator {
 ////                notifyAll();
 //            }
 //        }
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        queryStateManager = getSession();
+        if(queryStateManager != null){
             if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
 //                System.out.println("\n- - - - - - - - - -\nTsBlock comes");
                 System.out.println(showTsBlock(res));

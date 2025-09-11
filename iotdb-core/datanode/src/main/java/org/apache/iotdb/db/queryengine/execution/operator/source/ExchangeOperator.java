@@ -22,6 +22,7 @@ package org.apache.iotdb.db.queryengine.execution.operator.source;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.LocalSourceHandle;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
@@ -82,8 +83,8 @@ public class ExchangeOperator implements SourceOperator {
 
     @Override
     public TsBlock next() throws Exception {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        QueryStateManager queryStateManager = getSession();
+        if(queryStateManager != null){
             if(queryStateManager.isHasSeriesPath(sourceId.getId())
                     && !queryStateManager.isSingleScan()
                     && queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())
@@ -104,21 +105,20 @@ public class ExchangeOperator implements SourceOperator {
 //            ((LocalSourceHandle) sourceHandle).getSharedTsBlockQueue().waitUntilNotEmpty();
 //        }
         TsBlock res = sourceHandle.receive();
-        if(sourceId.getId().equals("15")){
-            System.out.println("经过15");
-        }
-        if(QueryStateManager.isInitialized() && res!=null){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
-            if(queryStateManager.isHasSeriesPath(sourceId.getId())
-                    && !queryStateManager.isSingleScan()
-                    && queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
-                long currentEndTime = res.getEndTime();
-                queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
-                System.out.println("设置时间戳"+currentEndTime+"此时的plan id为："+sourceId.getId());
-                if(!queryStateManager.hasScanSourceHandle(sourceId.getId())) {
-                    queryStateManager.addScanSourceHandle(sourceId.getId(),sourceHandle);
+        if(res!=null){
+            QueryStateManager queryStateManager2 = getSession();
+            if (queryStateManager2 != null) {
+                if(queryStateManager2.isHasSeriesPath(sourceId.getId())
+                    && !queryStateManager2.isSingleScan()
+                    && queryStateManager2.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
+                    long currentEndTime = res.getEndTime();
+                    queryStateManager2.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
+                    System.out.println("设置时间戳"+currentEndTime+"此时的plan id为："+sourceId.getId());
+                    if(!queryStateManager2.hasScanSourceHandle(sourceId.getId())) {
+                        queryStateManager2.addScanSourceHandle(sourceId.getId(),sourceHandle);
+                    }
+                    System.out.println(showTsBlock(res));
                 }
-                System.out.println(showTsBlock(res));
             }
         }
         return res;
@@ -156,6 +156,16 @@ public class ExchangeOperator implements SourceOperator {
 
     public ISourceHandle getSourceHandle() {
         return sourceHandle;
+    }
+
+    private String getColQueryId() {
+        String edgeQueryId = operatorContext.getInstanceContext().getId().getQueryId().getId();
+        int dataNodeId = org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+        return edgeQueryId + "-" + dataNodeId;
+    }
+
+    private QueryStateManager getSession() {
+        return ColQuerySessions.getByEdgeQueryId(getColQueryId());
     }
 
     @Override

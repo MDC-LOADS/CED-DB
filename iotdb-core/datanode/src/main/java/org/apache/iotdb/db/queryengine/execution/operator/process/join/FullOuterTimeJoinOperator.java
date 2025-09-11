@@ -23,6 +23,7 @@ import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.AbstractConsumeAllOperator;
@@ -127,7 +128,7 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
                                 * TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
 
         // Initialize default scan paths if not provided and QueryStateManager singleton is available
-        if (this.childScanPaths.isEmpty() && QueryStateManager.isInitialized()) {
+        if (this.childScanPaths.isEmpty()) {
             for (int i = 0; i < inputOperatorsCount; i++) {
                 String scanPath = extractSeriesPathFromChild(children.get(i), i);
                 if(scanPath!=null){
@@ -243,8 +244,8 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
 
     @Override
     public boolean hasNext() throws Exception {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        QueryStateManager queryStateManager = getSession();
+        if(queryStateManager != null){
             if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED
                     && !queryStateManager.getOperatorClearManager().isCleared("FullOuterJoin")){
                 //清空全部中间状态
@@ -261,7 +262,7 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
                 hasEmptyChildInput = false;
                 timeSelector.clear();
                 tsBlockBuilder.reset();
-                queryStateManager.getOperatorClearManager().clearOperator("FullOuterJoin");
+                queryStateManager.getOperatorClearManager().clearOperator(getColQueryId(),"FullOuterJoin");
             }
         }
         if (finished) {
@@ -426,11 +427,11 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
      */
     private void updateScanStates() {
         // Check if QueryStateManager singleton is initialized
-        if (!QueryStateManager.isInitialized()) {
+        if (getSession() == null) {
             return;
         }
 
-        QueryStateManager stateManager = QueryStateManager.getInstance();
+        QueryStateManager stateManager = getSession();
 
         for (int i = 0; i < inputOperatorsCount; i++) {
             // Skip if no corresponding scan path
@@ -507,7 +508,7 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
                 Object sourceId = sourceIdField.get(sourceOperator);
                 if (sourceId != null) {
                     String planNodeId = sourceId.toString();
-                    QueryStateManager stateManager = QueryStateManager.getInstance();
+                    QueryStateManager stateManager = getSession();
                     if(stateManager.getSeriesPath(planNodeId) != null) {
                         return stateManager.getSeriesPath(planNodeId);
                     }
@@ -555,7 +556,7 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
      * @return true if QueryStateManager singleton is initialized, false otherwise
      */
     public boolean isStateTrackingAvailable() {
-        return QueryStateManager.isInitialized();
+        return getSession() != null;
     }
 
     /**
@@ -564,6 +565,16 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
      * @return the QueryStateManager singleton instance, or null if not initialized
      */
     public QueryStateManager getQueryStateManager() {
-        return QueryStateManager.isInitialized() ? QueryStateManager.getInstance() : null;
+        return getSession();
+    }
+
+    private String getColQueryId() {
+        String edgeQueryId = getOperatorContext().getInstanceContext().getId().getQueryId().getId();
+        int dataNodeId = org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+        return edgeQueryId + "-" + dataNodeId;
+    }
+
+    private QueryStateManager getSession() {
+        return ColQuerySessions.getByEdgeQueryId(getColQueryId());
     }
 }

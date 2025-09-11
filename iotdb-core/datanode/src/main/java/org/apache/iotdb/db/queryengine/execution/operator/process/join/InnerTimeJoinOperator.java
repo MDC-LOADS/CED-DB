@@ -22,6 +22,7 @@ package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.ProcessOperator;
@@ -115,8 +116,8 @@ public class InnerTimeJoinOperator implements ProcessOperator {
         this.outputColumnMap = outputColumnMap;
         this.childScanPaths = childScanPaths != null ? childScanPaths : new ArrayList<>();
 
-        // Initialize default scan paths if not provided and QueryStateManager singleton is available
-        if (this.childScanPaths.isEmpty() && QueryStateManager.isInitialized()) {
+        // Initialize default scan paths if not provided
+        if (this.childScanPaths.isEmpty()) {
             for (int i = 0; i < inputOperatorsCount; i++) {
                 String scanPath = extractSeriesPathFromChild(children.get(i), i);
                 this.childScanPaths.add(scanPath);
@@ -370,20 +371,19 @@ public class InnerTimeJoinOperator implements ProcessOperator {
 
     @Override
     public boolean hasNext() throws Exception {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
-            if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED
-                    && !queryStateManager.getOperatorClearManager().isCleared("InnerJoin")){
-                //清空全部中间状态
-                Arrays.fill(inputIndex, 0);
-                Arrays.fill(inputTsBlocks, null);
-                Arrays.fill(canCallNext,false);
-                resultBuilder.reset();
-                currentChildIndex = 0;
-                hasEmptyChildInput = false;
-                queryStateManager.getOperatorClearManager().clearOperator("InnerJoin");
-            }
+        QueryStateManager queryStateManager = getSession();
+        if(queryStateManager != null && queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED
+                && !queryStateManager.getOperatorClearManager().isCleared("InnerJoin")) {
+            //清空全部中间状态
+            Arrays.fill(inputIndex, 0);
+            Arrays.fill(inputTsBlocks, null);
+            Arrays.fill(canCallNext,false);
+            resultBuilder.reset();
+            currentChildIndex = 0;
+            hasEmptyChildInput = false;
+            queryStateManager.getOperatorClearManager().clearOperator(getColQueryId(),"InnerJoin");
         }
+
         // return false if any child is consumed up.
         for (int i = 0; i < inputOperatorsCount; i++) {
             if (isEmpty(i) && canCallNext[i] && !children.get(i).hasNextWithTimer()) {
@@ -478,12 +478,8 @@ public class InnerTimeJoinOperator implements ProcessOperator {
      * timestamp at inputIndex[i] and isCouldEqual to true
      */
     private void updateScanStates() {
-        // Check if QueryStateManager singleton is initialized
-        if (!QueryStateManager.isInitialized()) {
-            return;
-        }
-
-        QueryStateManager stateManager = QueryStateManager.getInstance();
+        QueryStateManager stateManager = getSession();
+        if (stateManager == null) return;
 
         for (int i = 0; i < inputOperatorsCount; i++) {
             // Skip if no corresponding scan path
@@ -535,23 +531,6 @@ public class InnerTimeJoinOperator implements ProcessOperator {
         }
     }
 
-    /**
-     * Check if QueryStateManager singleton is available for state tracking.
-     *
-     * @return true if QueryStateManager singleton is initialized, false otherwise
-     */
-    public boolean isStateTrackingAvailable() {
-        return QueryStateManager.isInitialized();
-    }
-
-    /**
-     * Get the QueryStateManager singleton instance if available.
-     *
-     * @return the QueryStateManager singleton instance, or null if not initialized
-     */
-    public QueryStateManager getQueryStateManager() {
-        return QueryStateManager.isInitialized() ? QueryStateManager.getInstance() : null;
-    }
 
     /**
      * Get the child scan paths for this operator.
@@ -582,7 +561,7 @@ public class InnerTimeJoinOperator implements ProcessOperator {
                 Object sourceId = sourceIdField.get(sourceOperator);
                 if (sourceId != null) {
                     String planNodeId = sourceId.toString();
-                    QueryStateManager stateManager = QueryStateManager.getInstance();
+                    QueryStateManager stateManager = getSession();
                     if(stateManager.getSeriesPath(planNodeId) != null) {
                         return stateManager.getSeriesPath(planNodeId);
                     }
@@ -613,5 +592,15 @@ public class InnerTimeJoinOperator implements ProcessOperator {
         }
         // Fall back to default path naming if SeriesScanUtil is not found or extraction fails
         return "child_" + childIndex + "_" + operatorContext.getPlanNodeId();
+    }
+
+    private String getColQueryId() {
+        String edgeQueryId = operatorContext.getInstanceContext().getId().getQueryId().getId();
+        int dataNodeId = org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+        return edgeQueryId + "-" + dataNodeId;
+    }
+
+    private QueryStateManager getSession() {
+        return ColQuerySessions.getByEdgeQueryId(getColQueryId());
     }
 }

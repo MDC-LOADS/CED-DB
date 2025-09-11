@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
@@ -212,6 +213,16 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
         return tsBlock != null && index < tsBlock.getPositionCount();
     }
 
+    private String getColQueryId() {
+        String edgeQueryId = operatorContext.getInstanceContext().getId().getQueryId().getId();
+        int dataNodeId = org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+        return edgeQueryId + "-" + dataNodeId;
+    }
+
+    private QueryStateManager getSession() {
+        return ColQuerySessions.getByEdgeQueryId(getColQueryId());
+    }
+
     private void appendLeftTableRow() {
         for (int i = 0; i < leftColumnCount; i++) {
             Column leftColumn = leftTsBlock.getColumn(i);
@@ -324,8 +335,8 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
 
     @Override
     public boolean hasNext() throws Exception {
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        QueryStateManager queryStateManager = getSession();
+        if(queryStateManager != null){
             if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED
                     && !queryStateManager.getOperatorClearManager().isCleared("LeftOuterJoin")){
                 //清空全部中间状态
@@ -336,7 +347,7 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
                 rightIndex = 0;
                 rightFinished = false;
 
-                queryStateManager.getOperatorClearManager().clearOperator("LeftOuterJoin");
+                queryStateManager.getOperatorClearManager().clearOperator(getColQueryId(),"LeftOuterJoin");
             }
         }
         return tsBlockIsNotEmpty(leftTsBlock, leftIndex) || left.hasNextWithTimer();
@@ -398,12 +409,8 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
      * 3. Set hasLeftOuterJoin = true when caching occurs
      */
     private void updateLeftOuterJoinCache() {
-        // Check if QueryStateManager singleton is initialized
-        if (!QueryStateManager.isInitialized()) {
-            return;
-        }
-
-        QueryStateManager stateManager = QueryStateManager.getInstance();
+        QueryStateManager stateManager = getSession();
+        if (stateManager == null) return;
 
         // Case 1: leftTsBlock is empty, cache data from rightTsBlock
         if ((leftTsBlock == null || leftIndex == leftTsBlock.getPositionCount())

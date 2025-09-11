@@ -18,19 +18,19 @@ public class ColQueryExample {
 //        thriftServer.start();
 //        System.out.println("\nserver start success");
 
-        QueryStateManager.initialize();
-        QueryStateManager stateManager = QueryStateManager.getInstance();
+//        QueryStateManager.initialize();
+        QueryStateManager stateManager = ColQuerySessions.getByEdgeQueryId("test");
         ExecutorService executor = Executors.newCachedThreadPool();
         ColQueryStateMachine colQueryStateMachine = new ColQueryStateMachine("ColQuery-Test", executor);
         stateManager.setStateMachine(colQueryStateMachine);
 //        stateManager.setSql("select t1,t2 from root.ln.wf01.wt02");
 //        stateManager.setSql("select t1 from root.ln.wf01.wt02");
-        stateManager.setSql("select * from root.ln.wf01.wt02");
+        stateManager.setSql("select t1,t2,t3,t4,t5 from root.ln.wf01.wt01");
 //        stateManager.setSql("select t1,t3,t4 from root.ln.wf01.wt02 where t1>5 and t2>100");
 
         System.out.println("\ncolQueryStateMachine start success");
 
-        ResourceMonitor.startColQuery();
+//        ResourceMonitor.startColQuery();
         System.out.println("\ncolQuery start success");
 //        1756819524324
         while(stateManager.getStateMachine().getState()!= ColQueryState.COL_QUERY){

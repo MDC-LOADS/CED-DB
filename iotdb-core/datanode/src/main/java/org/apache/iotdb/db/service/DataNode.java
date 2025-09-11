@@ -1248,23 +1248,13 @@ public class DataNode extends ServerCommandLine implements DataNodeMBean {
           // 创建并启动服务器
           ServerStart server = new ServerStart();
           server.start();
-          for(int i=0;i<10;i++){
-            try {
-              ColQueryExample.main();
-              System.out.println("\n---------------------\n");
-              System.out.println("完成第"+(i+1)+"次查询");
-              System.out.println("\n---------------------\n");
-            } catch (InterruptedException e) {
-              throw new RuntimeException(e);
-            }
-        }
       }
   }
 
   static class ColQueryTest implements Runnable {
     @Override
     public void run() {
-      for(int i=0;i<1;i++){
+      for(int i=0;i<10;i++){
         try {
           ColQueryExample.main();
           System.out.println("\n---------------------\n");

@@ -18,7 +18,7 @@ public class OperatorClearManagerTest {
                 try {
                     // 模拟清理耗时
                     Thread.sleep((long) (Math.random() * 1000));
-                    manager.clearOperator(id);
+                    manager.clearOperator("",id);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }

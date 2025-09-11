@@ -23,6 +23,7 @@ import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.ScanInfoConverter;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
@@ -113,9 +114,10 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
             (1L + outputColumnCount)
                 * TSFileDescriptor.getInstance().getConfig().getPageSizeInByte());
     this.childScanPaths = new ArrayList<>();
-    if(QueryStateManager.isInitialized()){
-      QueryStateManager queryStateManager = QueryStateManager.getInstance();
-      if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+    {
+      QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+          operatorContext.getInstanceContext().getId().getQueryId().getId());
+      if(queryStateManager != null && queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
         extractSeriesPathFromChild();
 //        for (int i = 0; i < inputOperatorsCount; i++) {
 //          extractExchangeFromChild(children.get(i), i);
@@ -388,12 +390,11 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
      * 4. 子算子对应 inputTsBlocks[] 不为空，retainedTsBlock 也不为空，offset 设置为 retainedTsBlock 中的最小时间戳；
      */
     private void updateScanStates() {
-        // Check if QueryStateManager singleton is initialized
-        if (!QueryStateManager.isInitialized()) {
+        QueryStateManager stateManager = ColQuerySessions.getByCloudQueryId(
+                getOperatorContext().getInstanceContext().getId().getQueryId().getId());
+        if (stateManager == null) {
             return;
         }
-
-        QueryStateManager stateManager = QueryStateManager.getInstance();
 
         for (int i = 0; i < inputOperatorsCount; i++) {
             // Skip if no corresponding scan path
@@ -452,7 +453,11 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
      *
      */
     private void extractSeriesPathFromChild() {
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+        QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+                getOperatorContext().getInstanceContext().getId().getQueryId().getId());
+        if (queryStateManager == null) {
+            return;
+        }
         if(!queryStateManager.getAllScanPathList().isEmpty()){
             queryStateManager.getAllScanStates().forEach((key, value) -> {
                 if(value.isFullOuterJoin()){
@@ -468,7 +473,8 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
 
   private void extractExchangeFromChild(Operator childOperator, int i) {
     // Check if child operator is an AbstractDataSourceOperator that contains SeriesScanUtil
-    QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+            getOperatorContext().getInstanceContext().getId().getQueryId().getId());
     if (childOperator instanceof AbstractDataSourceOperator) {
 //      AbstractDataSourceOperator dataSourceOperator = (AbstractDataSourceOperator) childOperator;
       // Access the seriesScanUtil field using reflection to get seriesPath

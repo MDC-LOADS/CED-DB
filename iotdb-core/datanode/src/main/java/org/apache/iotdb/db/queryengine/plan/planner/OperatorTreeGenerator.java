@@ -38,6 +38,7 @@ import org.apache.iotdb.db.queryengine.execution.aggregation.slidingwindow.Slidi
 import org.apache.iotdb.db.queryengine.execution.aggregation.timerangeiterator.ITimeRangeIterator;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.driver.DataDriverContext;
 import org.apache.iotdb.db.queryengine.execution.driver.SchemaDriverContext;
 import org.apache.iotdb.db.queryengine.execution.exchange.MPPDataExchangeManager;
@@ -430,15 +431,15 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
       }
       return rootOperator;
     }
-    if(QueryStateManager.isInitialized()){
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+    QueryStateManager session = ColQuerySessions.getByCloudQueryId(context.getFragmentInstanceId().getQueryId().getId());
+    if(session != null) {
+        if(session.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
             System.out.println("设置是否为Exchange Scan");
             //                System.out.println("设置成功，id为"+operatorContext.getPlanNodeId().getId());
-            queryStateManager.setScanPathExchangeByPlanNodeId(operatorContext.getPlanNodeId().getId(),
+            session.setScanPathExchangeByPlanNodeId(operatorContext.getPlanNodeId().getId(),
                     operatorContext.getDriverContext().getOperatorContexts().size() == 1);
 //            System.out.println("\n-------------\nvisit series scan start to work\n-------------\n");
-            QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
+            QueryStateManager.ScanStates scanStates = session.getScanStates(seriesPath.getFullPath());
             Filter newOffsetFilter;
             if(scanStates.isCouldEqual()){
                 newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());

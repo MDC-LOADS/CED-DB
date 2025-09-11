@@ -23,6 +23,7 @@ import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.ScanInfoConverter;
 import org.apache.iotdb.db.queryengine.execution.colquery.colservice.C2EColService;
 import org.apache.iotdb.db.queryengine.execution.colquery.colservice.Column;
@@ -83,15 +84,17 @@ public class IdentitySinkOperator implements Operator {
 
   @Override
   public boolean hasNext() throws Exception {
-    if(QueryStateManager.isInitialized()){
-//        .getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
-            if (queryStateManager.getStateMachine().getState() == ColQueryState.PRE_COL_QUERY) {
-                this.colSinkHandle = queryStateManager.getSinkHandle();
-                colSinkHandle.tryOpenChannel(0);
-                queryStateManager.getStateMachine().transitionToColQuery();
-            }
+    {
+        QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+            operatorContext.getInstanceContext().getId().getQueryId().getId());
+        if (queryStateManager != null
+            && queryStateManager.getRootIdentitySinkId() != null
+            && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
+          if (queryStateManager.getStateMachine().getState() == ColQueryState.PRE_COL_QUERY) {
+            this.colSinkHandle = queryStateManager.getSinkHandle();
+            colSinkHandle.tryOpenChannel(0);
+            queryStateManager.getStateMachine().transitionToColQuery();
+          }
         }
     }
     int currentIndex = downStreamChannelIndex.getCurrentIndex();
@@ -106,9 +109,10 @@ public class IdentitySinkOperator implements Operator {
 
     } else {
       // current child has no more data
-        if(QueryStateManager.isInitialized()){
-            QueryStateManager queryStateManager = QueryStateManager.getInstance();
-            if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
+        {
+            QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+                operatorContext.getInstanceContext().getId().getQueryId().getId());
+            if(queryStateManager != null && queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
                 if(queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY){
                     System.out.println("\n要结束啦！");
                     colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
@@ -194,13 +198,11 @@ public class IdentitySinkOperator implements Operator {
 
   @Override
   public TsBlock next() throws Exception {
-    if(QueryStateManager.isInitialized()){
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    {
+        QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+            operatorContext.getInstanceContext().getId().getQueryId().getId());
 //        System.out.println("\n怀疑是IdentitySink的问题"+queryStateManager.getRootIdentitySinkId()+"\n");
-        if(queryStateManager.getRootIdentitySinkId()!=null){
-            System.out.println();
-        }
-        if(queryStateManager.getRootIdentitySinkId()!=null &&
+        if(queryStateManager != null && queryStateManager.getRootIdentitySinkId()!=null &&
                 queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
 //            System.out.println("\n找到了，状态机状态为："+queryStateManager.getStateMachine().getState()+"\n");
             if(queryStateManager.getStateMachine().getState()== ColQueryState.COL_QUERY){
@@ -304,8 +306,10 @@ public class IdentitySinkOperator implements Operator {
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();
           // 调用服务方法
-
-          client.ColQueryClose(scanInfoMap);
+          String colQueryId = ColQuerySessions
+              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
+              .getQueryId();
+          client.ColQueryClose(colQueryId, scanInfoMap);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
       } catch (TException x) {
           x.printStackTrace();
@@ -318,8 +322,10 @@ public class IdentitySinkOperator implements Operator {
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();
           // 调用服务方法
-
-          client.ColQueryCloseWithLeftOuterJoin(scanInfoMap,timeColumnLeft,valueColumnsLeft,timeColumnRight,valueColumnsRight);
+          String colQueryId = ColQuerySessions
+              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
+              .getQueryId();
+          client.ColQueryCloseWithLeftOuterJoin(colQueryId, scanInfoMap,timeColumnLeft,valueColumnsLeft,timeColumnRight,valueColumnsRight);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
       } catch (TException x) {
           x.printStackTrace();
@@ -332,8 +338,10 @@ public class IdentitySinkOperator implements Operator {
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();
           // 调用服务方法
-
-          client.ColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,isCloudEqual);
+          String colQueryId = ColQuerySessions
+              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
+              .getQueryId();
+          client.ColQueryCloseWithSingleScan(colQueryId, planNodeId,offset,seriesPath,isCloudEqual);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
       } catch (TException x) {
           x.printStackTrace();
@@ -386,19 +394,5 @@ public class IdentitySinkOperator implements Operator {
         return sb.toString();
     }
 
-    static class WaitForClose implements Runnable {
-        @Override
-        public void run() {
-            QueryStateManager qsm = QueryStateManager.getInstance();
-            while(!qsm.getSinkHandle().getChannel(0).isFinished()){
-                try {
-                    Thread.sleep(10);
-                    System.out.println("waiting 123");
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            qsm.getSinkHandle().close();
-        }
-    }
+    // WaitForClose helper was unused and removed in multi-session refactor
 }

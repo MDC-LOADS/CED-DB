@@ -34,6 +34,7 @@ import org.apache.iotdb.db.queryengine.execution.QueryState;
 import org.apache.iotdb.db.queryengine.execution.QueryStateMachine;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.colservice.C2EColService;
 import org.apache.iotdb.db.queryengine.execution.exchange.MPPDataExchangeService;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
@@ -121,6 +122,12 @@ public class QueryExecution implements IQueryExecution {
   // cost time in ns
   private long totalExecutionTime = 0;
 
+  // colQueryId for collaborative queries
+  private String colQueryId;
+  
+  // ThreadLocal to store colQueryId for current thread
+  private static final ThreadLocal<String> CURRENT_COL_QUERY_ID = new ThreadLocal<>();
+
   private static final QueryExecutionMetricSet QUERY_EXECUTION_METRIC_SET =
       QueryExecutionMetricSet.getInstance();
   private static final QueryPlanCostMetricSet QUERY_PLAN_COST_METRIC_SET =
@@ -179,23 +186,52 @@ public class QueryExecution implements IQueryExecution {
 
     // check timeout for query first
     checkTimeOutForQuery();
+    
+    // 从ThreadLocal获取colQueryId（如果有的话）
+    String threadLocalColQueryId = CURRENT_COL_QUERY_ID.get();
+    QueryStateManager queryStateManager = null;
+    
+    if (threadLocalColQueryId != null) {
+      // 如果ThreadLocal中有colQueryId，直接通过它获取QueryStateManager
+      queryStateManager = ColQuerySessions.getByEdgeQueryId(threadLocalColQueryId);
+      if (queryStateManager != null) {
+        // 建立cloudQueryId的绑定
+        ColQuerySessions.bindCloudQueryId(threadLocalColQueryId, context.getQueryId().getId());
+        this.colQueryId = threadLocalColQueryId;
+      }
+    }
+    
     doLogicalPlan();
-    //如果状态机为START，将cloudFragmentId发送给边
-    if(QueryStateManager.isInitialized()){
-      QueryStateManager queryStateManager = QueryStateManager.getInstance();
-      if(queryStateManager.getStateMachine().getState()==ColQueryState.START && !this.logicalPlan.getContext().getSql().contains("Fetch Schema")){
-//        queryStateManager.setRootIdentitySinkId(this.logicalPlan.getRootNode().getPlanNodeId().getId());
+    // 如果状态机为 START，将 cloudFragmentId 发送给边
+    if (queryStateManager != null
+        && queryStateManager.getStateMachine() != null
+        && !this.logicalPlan.getContext().getSql().contains("Fetch Schema")) {
+      // 注册会话回收监听：进入 CLOSED/ABORT 后清理会话
+      queryStateManager
+          .getStateMachine()
+          .addStateChangeListener(
+              newState -> {
+                if (newState == ColQueryState.CLOSED || newState == ColQueryState.ABORT) {
+                  ColQuerySessions.removeByCloudQueryId(context.getQueryId().getId());
+                }
+              });
+
+      // 仅在 START -> PRE_COL_QUERY 握手阶段阻塞等待
+      if (queryStateManager.getStateMachine().getState() == ColQueryState.START) {
         callAckMessage(queryStateManager.getAndAddCloudFragmentId());
-        try{//直到状态机改变才开始继续执行
-          while(queryStateManager.getStateMachine().getState()!=ColQueryState.PRE_COL_QUERY){
-            System.out.println("\n-------------\nQueryExecution start to wait\n-------------\n");
-//            wait();
-            Thread.sleep(10);
-          }
-        }catch (InterruptedException e){
-          System.out.println("\n等待失败");
+        try {
+          // 等待状态从 START 变化（预期到 PRE_COL_QUERY）
+          com.google.common.util.concurrent.ListenableFuture<org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState>
+              stateChange =
+                  queryStateManager
+                      .getStateMachine()
+                      .getStateChange(org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState.START);
+          stateChange.get();
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+        } catch (java.util.concurrent.ExecutionException ee) {
+          // 不中断主流程，交给后续逻辑处理
         }
-        System.out.println("\n-------------\nQueryExecution stop to wait\n-------------\n");
       }
     }
 
@@ -335,12 +371,24 @@ public class QueryExecution implements IQueryExecution {
           distributedPlan.getInstances().size(),
           printFragmentInstances(distributedPlan.getInstances()));
     }
-    if(QueryStateManager.isInitialized() && distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion) {
-      QueryStateManager queryStateManager = QueryStateManager.getInstance();
-      //设置根节点
-      queryStateManager.setRootIdentitySinkId(distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
-      System.out.println("\nFragmentInstances:"+printFragmentInstances(distributedPlan.getInstances()));
-      System.out.println("\nRoot Identity's PlanNodeId is:"+distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId().getId());
+    if (distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()
+        == DataRegion) {
+      QueryStateManager session2 = ColQuerySessions.getByCloudQueryId(context.getQueryId().getId());
+      if (session2 != null) {
+        // 设置根节点
+        session2.setRootIdentitySinkId(
+            distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
+        System.out.println("\nFragmentInstances:" + printFragmentInstances(distributedPlan.getInstances()));
+        System.out.println(
+            "\nRoot Identity's PlanNodeId is:"
+                + distributedPlan
+                    .getInstances()
+                    .get(0)
+                    .getFragment()
+                    .getPlanNodeTree()
+                    .getPlanNodeId()
+                    .getId());
+      }
     }
     // check timeout after building distribution plan because it could be time-consuming in some
     // cases.
@@ -710,6 +758,22 @@ public class QueryExecution implements IQueryExecution {
     return planner.getScheduledExecutorService();
   }
 
+  public String getColQueryId() {
+    return colQueryId;
+  }
+  
+  public static void setCurrentColQueryId(String colQueryId) {
+    CURRENT_COL_QUERY_ID.set(colQueryId);
+  }
+  
+  public static String getCurrentColQueryId() {
+    return CURRENT_COL_QUERY_ID.get();
+  }
+  
+  public static void clearCurrentColQueryId() {
+    CURRENT_COL_QUERY_ID.remove();
+  }
+
   public void callAckMessage(int cloudFragmentId){
       TTransport transport = null;
       try  {
@@ -718,7 +782,9 @@ public class QueryExecution implements IQueryExecution {
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();
           // 调用服务方法
-          client.ACKMessage(cloudFragmentId);
+          QueryStateManager session = ColQuerySessions.getByCloudQueryId(context.getQueryId().getId());
+          String colQueryId = session != null && session.getQueryId()!=null ? session.getQueryId() : "";
+          client.ACKMessage(colQueryId, cloudFragmentId);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
       } catch (TException x) {
           x.printStackTrace();

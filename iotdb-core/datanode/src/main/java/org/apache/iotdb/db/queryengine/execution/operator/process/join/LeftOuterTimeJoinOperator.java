@@ -22,6 +22,7 @@ package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.ProcessOperator;
@@ -94,9 +95,10 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
     this.left = leftChild;
     this.leftColumnCount = leftColumnCount;
     this.right = rightChild;
-    if(QueryStateManager.isInitialized()){
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+    {
+        QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+            operatorContext.getInstanceContext().getId().getQueryId().getId());
+        if(queryStateManager != null && queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
             this.rightTsBlock = queryStateManager.getLeftOuterJoinCacheRight();
             this.leftTsBlock = queryStateManager.getLeftOuterJoinCacheLeft();
         }
@@ -377,12 +379,11 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
      * 3. Set hasLeftOuterJoin = true when caching occurs
      */
     private void updateLeftOuterJoinCache() {
-        // Check if QueryStateManager singleton is initialized
-        if (!QueryStateManager.isInitialized()) {
+        QueryStateManager stateManager = ColQuerySessions.getByCloudQueryId(
+                operatorContext.getInstanceContext().getId().getQueryId().getId());
+        if (stateManager == null) {
             return;
         }
-
-        QueryStateManager stateManager = QueryStateManager.getInstance();
 
         // Case 1: leftTsBlock is empty, cache data from rightTsBlock
         if ((leftTsBlock == null || leftIndex >= leftTsBlock.getPositionCount())

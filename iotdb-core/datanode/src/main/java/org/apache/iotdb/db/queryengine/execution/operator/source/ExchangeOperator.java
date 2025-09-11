@@ -21,6 +21,7 @@ package org.apache.iotdb.db.queryengine.execution.operator.source;
 
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNodeId;
@@ -83,15 +84,16 @@ public class ExchangeOperator implements SourceOperator {
   @Override
   public TsBlock next() throws Exception {
       TsBlock res = sourceHandle.receive();
-      if(QueryStateManager.isInitialized()){
-          QueryStateManager queryStateManager = QueryStateManager.getInstance();
-//          System.out.println("source id:" + sourceId);
-//          System.out.println("has:"+queryStateManager.isHasSeriesPath(sourceId.getId()));
-          List<String> plans = queryStateManager.getAllScanPlanNodeIdList();
+      {
+          QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+              operatorContext.getInstanceContext().getId().getQueryId().getId());
+          //          System.out.println("source id:" + sourceId);
+          //          System.out.println("has:"+queryStateManager.isHasSeriesPath(sourceId.getId()));
+          List<String> plans = queryStateManager != null ? queryStateManager.getAllScanPlanNodeIdList() : java.util.Collections.emptyList();
           for (String plan : plans) {
 //            System.out.println("plan id:" + plan);
           }
-          if(queryStateManager.isHasSeriesPath(sourceId.getId())
+          if(queryStateManager != null && queryStateManager.isHasSeriesPath(sourceId.getId())
                   && !queryStateManager.isSingleScan()
                   && queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
               long currentEndTime = res.getEndTime();

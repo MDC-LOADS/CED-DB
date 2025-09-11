@@ -22,6 +22,7 @@ package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.ProcessOperator;
@@ -101,9 +102,10 @@ public class InnerTimeJoinOperator implements ProcessOperator {
     this.comparator = comparator;
     this.outputColumnMap = outputColumnMap;
     this.childScanPaths = new ArrayList<>();
-    if(QueryStateManager.isInitialized()){
-      QueryStateManager queryStateManager = QueryStateManager.getInstance();
-      if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+    {
+      QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+          operatorContext.getInstanceContext().getId().getQueryId().getId());
+      if(queryStateManager != null && queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
         extractSeriesPathFromChild();
       }
     }
@@ -448,12 +450,11 @@ public class InnerTimeJoinOperator implements ProcessOperator {
      * timestamp at inputIndex[i] and isCouldEqual to true
      */
   private void updateScanStates() {
-      // Check if QueryStateManager singleton is initialized
-      if (!QueryStateManager.isInitialized()) {
-          return;
+      QueryStateManager stateManager = ColQuerySessions.getByCloudQueryId(
+              operatorContext.getInstanceContext().getId().getQueryId().getId());
+      if (stateManager == null) {
+        return;
       }
-
-      QueryStateManager stateManager = QueryStateManager.getInstance();
 
       for (int i = 0; i < inputOperatorsCount; i++) {
             // Skip if no corresponding scan path
@@ -511,7 +512,11 @@ public class InnerTimeJoinOperator implements ProcessOperator {
      *
      */
   private void extractSeriesPathFromChild() {
-      QueryStateManager queryStateManager = QueryStateManager.getInstance();
+      QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+              operatorContext.getInstanceContext().getId().getQueryId().getId());
+      if (queryStateManager == null) {
+          return;
+      }
       if(!queryStateManager.getAllScanPathList().isEmpty()){
           queryStateManager.getAllScanStates().forEach((key, value) -> {
               if(value.isInnerJoin()){

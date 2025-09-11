@@ -44,11 +44,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Global query state manager for monitoring intermediate query states. Provides thread-safe access
- * to query execution states and scan operator states.
- *
- * <p>This class follows the singleton pattern and should be initialized once during system startup
- * using the initialize() method.
+ * Per-query state manager for collaborative queries. Query instances are managed by
+ * ColQuerySessions and looked up by query id instead of using a global singleton.
  */
 public class QueryStateManager {
 
@@ -99,133 +96,34 @@ public class QueryStateManager {
 
   private static final int remotePort = 10740;
 
-  private QueryId colQueryId;//协同查询的id
+  private String colQueryId;//协同查询的id
 
   private static final String colPlanNodeId = "colPlanNodeId";
 
   private volatile boolean isSingleScan = false;
 
+  // record SQL for heuristics / debugging
+  private String sql;
 
 
-
-  // ========== 单例模式实现 ==========
-
-  private static volatile QueryStateManager instance;
-  private static final Object lock_singleton = new Object();
-
-  /** 私有构造函数，防止外部直接实例化 */
-  private QueryStateManager(ColQueryStateMachine stateMachine) {
+  /** 构造函数 */
+  public QueryStateManager(ColQueryStateMachine stateMachine) {
     this.stateMachine = stateMachine;
-    this.colQueryId = new QueryId("null");
+    this.colQueryId = "null";
     this.cloudFragmentId = 1000;
   }
 
-  private QueryStateManager() {
+  public QueryStateManager() {
     this.stateMachine = null;
-    this.colQueryId = new QueryId("null");
+    this.colQueryId = "null";
     this.cloudFragmentId = 1000;
 
   }
 
-  private QueryStateManager(ColQueryStateMachine stateMachine, String queryId) {
+  public QueryStateManager(ColQueryStateMachine stateMachine, String queryId) {
     this.stateMachine = stateMachine;
-    this.colQueryId =new QueryId(queryId);
+    this.colQueryId = queryId;
     this.cloudFragmentId = 1000;
-  }
-  /**
-   * 获取QueryStateManager的单例实例
-   *
-   * @return QueryStateManager的单例实例
-   * @throws IllegalStateException 如果单例尚未初始化
-   */
-  public static QueryStateManager getInstance() {
-    if (instance == null) {
-      throw new IllegalStateException(
-          "QueryStateManager has not been initialized. Please call initialize() first.");
-    }
-    return instance;
-  }
-
-  /**
-   * 初始化QueryStateManager单例 应该在系统启动时调用一次
-   *
-   * @param stateMachine 可选的ColQueryStateMachine，可以为null
-   * @return 初始化的QueryStateManager实例
-   */
-  public static QueryStateManager initialize(ColQueryStateMachine stateMachine) {
-    if (instance == null) {
-      synchronized (lock_singleton) {
-        if (instance == null) {
-          instance = new QueryStateManager(stateMachine);
-        }
-      }
-    }else {
-      instance.resetStates();
-      instance = null;
-      synchronized (lock_singleton) {
-        if (instance == null) {
-          instance = new QueryStateManager(stateMachine);
-        }
-      }
-    }
-    return instance;
-  }
-
-  public static QueryStateManager initialize(ColQueryStateMachine stateMachine, String queryId) {
-    if (instance == null) {
-      synchronized (lock_singleton) {
-        if (instance == null) {
-          instance = new QueryStateManager(stateMachine,queryId);
-        }
-      }
-    }
-    return instance;
-  }
-
-  /**
-   * 使用默认参数初始化QueryStateManager单例 应该在系统启动时调用一次
-   *
-   * @return 初始化的QueryStateManager实例
-   */
-  public static QueryStateManager initialize() {
-    return initialize(null);
-  }
-
-  /**
-   * 检查单例是否已经初始化
-   *
-   * @return true如果已初始化，false如果未初始化
-   */
-  public static boolean isInitialized() {
-    return instance != null;
-  }
-
-  /** 重置单例实例，主要用于测试场景 注意：这个方法会清除所有状态数据 */
-  public static synchronized void reset() {
-    if (instance != null) {
-      instance.resetStates();
-      instance = null;
-    }
-  }
-
-  /**
-   * 重新初始化单例，主要用于测试场景
-   *
-   * @param stateMachine 新的ColQueryStateMachine
-   * @return 重新初始化的QueryStateManager实例
-   */
-  public static QueryStateManager reinitialize(ColQueryStateMachine stateMachine) {
-    reset();
-    return initialize(stateMachine);
-  }
-
-  /**
-   * 重新初始化单例，使用默认参数，主要用于测试场景
-   *
-   * @return 重新初始化的QueryStateManager实例
-   */
-  public static QueryStateManager reinitialize() {
-    return reinitialize(null);
   }
 
   /** Inner class representing states for scan operators */
@@ -337,7 +235,7 @@ public class QueryStateManager {
     }
   }
 
-  public QueryId getQueryId() {
+  public String getQueryId() {
     lock.readLock().lock();
     try {
       return colQueryId;
@@ -346,7 +244,7 @@ public class QueryStateManager {
     }
   }
 
-  public void setQueryId(QueryId queryId) {
+  public void setQueryId(String queryId) {
     lock.writeLock().lock();
     try {
       this.colQueryId = queryId;
@@ -354,6 +252,10 @@ public class QueryStateManager {
       lock.writeLock().unlock();
     }
   }
+
+  public String getSql() { return sql; }
+
+  public void setSql(String sql) { this.sql = sql; }
 
   // Scan states operations
   public ScanStates getScanStates(String scanPath) {
@@ -584,8 +486,8 @@ public class QueryStateManager {
   //创建并建立SourceHandle
   public void createAndSetSourceHandle(int cloudFragmentId) {
     TEndPoint remoteEndpoint = new TEndPoint(remoteIp, remotePort);
-    TFragmentInstanceId localFragmentInstanceId = new TFragmentInstanceId(colQueryId.getId(),edgeFragmentId,"0");
-    TFragmentInstanceId remoteFragmentInstanceId = new TFragmentInstanceId(colQueryId.getId(),cloudFragmentId,"0");
+    TFragmentInstanceId localFragmentInstanceId = new TFragmentInstanceId(colQueryId,edgeFragmentId,"0");
+    TFragmentInstanceId remoteFragmentInstanceId = new TFragmentInstanceId(colQueryId,cloudFragmentId,"0");
     long queryNum=1;
     FragmentInstanceContext colQueryInstanceContext = new FragmentInstanceContext(queryNum);
     this.sourceHandle = MPP_DATA_EXCHANGE_MANAGER.createSourceHandle(
@@ -603,8 +505,8 @@ public class QueryStateManager {
 
   public  void createAndSetSinkHandle(int edgeFragmentId){
       TEndPoint remoteEndpoint = new TEndPoint(remoteIp, remotePort);
-      TFragmentInstanceId localFragmentInstanceId = new TFragmentInstanceId(colQueryId.getId(),cloudFragmentId,"0");
-      TFragmentInstanceId remoteFragmentInstanceId = new TFragmentInstanceId(colQueryId.getId(),edgeFragmentId,"0");
+      TFragmentInstanceId localFragmentInstanceId = new TFragmentInstanceId(colQueryId,cloudFragmentId,"0");
+      TFragmentInstanceId remoteFragmentInstanceId = new TFragmentInstanceId(colQueryId,edgeFragmentId,"0");
       int channelNum = 1;
       AtomicInteger cnt = new AtomicInteger(channelNum);
       long query_num=1;
@@ -613,7 +515,7 @@ public class QueryStateManager {
       String localPlanNodeId = "colCloudPlanNodeId";
       System.out.println("localPlanNodeId:"+localPlanNodeId);
       System.out.println("colPlanNodeId:"+colPlanNodeId);
-      System.out.println("colQueryId:"+colQueryId.getId());
+      System.out.println("colQueryId:"+colQueryId);
       System.out.println("edgeFragmentId:"+edgeFragmentId);
       System.out.println("cloudFragmentId:"+cloudFragmentId);
 
@@ -685,7 +587,7 @@ public class QueryStateManager {
     try {
       // Basic query info
       sb.append("  QueryId: ")
-              .append(colQueryId == null ? "<null>" : colQueryId.getId())
+              .append(colQueryId == null ? "<null>" : colQueryId)
               .append("\n");
       sb.append("  StateMachine: ")
               .append(stateMachine != null ? stateMachine.getState() : "<null>")

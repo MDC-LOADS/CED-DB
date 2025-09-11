@@ -1,6 +1,7 @@
 package org.apache.iotdb.db.queryengine.execution.colquery;
 
 import org.apache.iotdb.db.queryengine.common.QueryId;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.colservice.*;
 import org.apache.iotdb.db.utils.colutils.SQLQueryExecutor;
 import org.apache.thrift.TException;
@@ -15,26 +16,25 @@ import java.util.stream.Collectors;
 
 public class ServiceImpl implements E2CColService.Iface{
 
-    private String sql = null;
-
     @Override
-    public void ColQueryStart(String sql, String queryId) throws TException {
-        this.sql = sql;
-        QueryStateManager stateManager = QueryStateManager.initialize();//初始化管理状态
+    public void ColQueryStart(String sql, String colQueryId) throws TException {
+        // Create a new collaborative session bound to this edge channel id
+        QueryStateManager session = ColQuerySessions.create(colQueryId);
+        session.setSql(sql);
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        ColQueryStateMachine colQueryStateMachine =
-                new ColQueryStateMachine(queryId, executor);
-        stateManager.setStateMachine(colQueryStateMachine);
-        stateManager.setQueryId(new QueryId(queryId));
+        ColQueryStateMachine colQueryStateMachine = new ColQueryStateMachine(colQueryId, executor);
+        session.setStateMachine(colQueryStateMachine);
+        session.setQueryId(colQueryId);
         colQueryStateMachine.transitionToStart();//状态机切换为START
-        Thread queryExecution = new Thread(new ExecuteIdentityQuery());
+        Thread queryExecution = new Thread(new ExecuteIdentityQuery(colQueryId, sql));
         queryExecution.start();
     }
 
     @Override
-    public void AnsMessageWithLeftOuterJoin(int edgeFragmentId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft, TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
-        //将数据转换后塞到全局变量中，状态变更pre_col_query
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    public void AnsMessageWithLeftOuterJoin(String colQueryId, int edgeFragmentId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft, TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
+        // 将数据转换后塞到对应会话，状态变更 pre_col_query
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if (queryStateManager == null) return;
         queryStateManager.setEdgeFragmentId(edgeFragmentId);
         queryStateManager.createAndSetSinkHandle(edgeFragmentId);
         scanInfoMap.forEach((key, value) -> {
@@ -96,8 +96,9 @@ public class ServiceImpl implements E2CColService.Iface{
     }
 
     @Override
-    public void AnsMessage(int edgeFragmentId, Map<String, ScanInfo> scanInfoMap) throws TException {
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    public void AnsMessage(String colQueryId, int edgeFragmentId, Map<String, ScanInfo> scanInfoMap) throws TException {
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if (queryStateManager == null) return;
         queryStateManager.setEdgeFragmentId(edgeFragmentId);
         queryStateManager.createAndSetSinkHandle(edgeFragmentId);
         scanInfoMap.forEach((key, value) -> {
@@ -112,8 +113,9 @@ public class ServiceImpl implements E2CColService.Iface{
     }
 
     @Override
-    public void AnsMessageWithSingleScan(int edgeFragmentId, String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
+    public void AnsMessageWithSingleScan(String colQueryId, int edgeFragmentId, String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if (queryStateManager == null) return;
         queryStateManager.setEdgeFragmentId(edgeFragmentId);
         queryStateManager.createAndSetSinkHandle(edgeFragmentId);
         queryStateManager.setSeriesPathAndPlanNodeId(planNodeId,seriesPath);
@@ -123,13 +125,21 @@ public class ServiceImpl implements E2CColService.Iface{
     }
 
     @Override
-    public void PreColQueryClose() throws TException {
-        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        if(queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY){
-            queryStateManager.getStateMachine().transitionToPreClosed();
+    public void PreColQueryClose(String colQueryId) throws TException {
+        QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
+        if (queryStateManager == null) return;
+        if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY) {
+          queryStateManager.getStateMachine().transitionToPreClosed();
         }
     }
     class ExecuteIdentityQuery implements Runnable {
+        private final String edgeQueryId;
+        private final String sql;
+
+        ExecuteIdentityQuery(String edgeQueryId, String sql){
+            this.edgeQueryId = edgeQueryId;
+            this.sql = sql;
+        }
         @Override
         public void run() {
             // 首先检查IoTDB服务是否可用，带重试机制
@@ -140,20 +150,27 @@ public class ServiceImpl implements E2CColService.Iface{
             SQLQueryExecutor executor = new SQLQueryExecutor();
             if(sql!=null && servicesAvailable){
                 try {
-                    SQLQueryExecutor.QueryResult result = executor.executeQuery(sql);
-                    System.out.println("✓ 查询成功!");
-                    System.out.println("SQL: " + sql);
-                    System.out.println("列名: " + result.getColumnNames());
-                    System.out.println("数据类型: " + result.getDataTypes());
-                    System.out.println("行数: " + result.getRowCount());
+                    // 将colQueryId设置到ThreadLocal，供QueryExecution.start()使用
+                    org.apache.iotdb.db.queryengine.plan.execution.QueryExecution.setCurrentColQueryId(edgeQueryId);
+                    try {
+                        SQLQueryExecutor.QueryResult result = executor.executeQuery(sql);
+                        System.out.println("✓ 查询成功!");
+                        System.out.println("SQL: " + sql);
+                        System.out.println("列名: " + result.getColumnNames());
+                        System.out.println("数据类型: " + result.getDataTypes());
+                        System.out.println("行数: " + result.getRowCount());
 
-                    if (result.getRowCount() > 0) {
-                        System.out.println("数据:");
-                        for (int i = 0; i < result.getRowCount(); i++) {
-                            System.out.println("  行 " + (i + 1) + ": " + result.getRows().get(i));
+                        if (result.getRowCount() > 0) {
+                            System.out.println("数据:");
+                            for (int i = 0; i < result.getRowCount(); i++) {
+                                System.out.println("  行 " + (i + 1) + ": " + result.getRows().get(i));
+                            }
+                        } else {
+                            System.out.println("没有查询到数据");
                         }
-                    } else {
-                        System.out.println("没有查询到数据");
+                    } finally {
+                        // 清理ThreadLocal，避免内存泄露
+                        org.apache.iotdb.db.queryengine.plan.execution.QueryExecution.clearCurrentColQueryId();
                     }
 
                 } catch (SQLQueryExecutor.QueryExecutionException e) {

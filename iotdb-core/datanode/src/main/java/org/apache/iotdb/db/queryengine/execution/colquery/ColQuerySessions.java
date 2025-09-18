@@ -20,7 +20,9 @@ public final class ColQuerySessions {
   }
 
   public static void removeByEdgeQueryId(String edgeColQueryId) {
-    BY_EDGE_QUERY_ID.remove(edgeColQueryId);
+    QueryStateManager manager = BY_EDGE_QUERY_ID.remove(edgeColQueryId);
+    if (manager != null) {
+      manager.clearMetrics();
+    }
   }
 }
-

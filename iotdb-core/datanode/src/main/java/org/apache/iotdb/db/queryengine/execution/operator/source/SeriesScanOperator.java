@@ -60,6 +60,7 @@ public class SeriesScanOperator extends AbstractSeriesScanOperator {
             stateManager.setSeriesPathAndPlanNodeId(this.sourceId.getId(),this.seriesScanUtil.seriesPath.toString());
             stateManager.setScanPathExchangeByPlanNodeId(operatorContext.getPlanNodeId().getId(),
                         operatorContext.getDriverContext().getOperatorContexts().size() == 1);
+            stateManager.setScanStates(this.seriesScanUtil.seriesPath.toString(),new QueryStateManager.ScanStates());
         }
 
 

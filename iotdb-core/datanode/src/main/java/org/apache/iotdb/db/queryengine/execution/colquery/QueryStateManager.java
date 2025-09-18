@@ -20,21 +20,25 @@
 package org.apache.iotdb.db.queryengine.execution.colquery;
 
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
-import org.apache.iotdb.db.queryengine.common.FragmentInstanceId;
-import org.apache.iotdb.db.queryengine.common.PlanFragmentId;
-import org.apache.iotdb.db.queryengine.common.QueryId;
+import org.apache.iotdb.commons.service.metric.MetricService;
+import org.apache.iotdb.commons.service.metric.enums.Metric;
+import org.apache.iotdb.commons.service.metric.enums.Tag;
 import org.apache.iotdb.db.queryengine.execution.exchange.MPPDataExchangeManager;
 import org.apache.iotdb.db.queryengine.execution.exchange.MPPDataExchangeService;
 import org.apache.iotdb.db.queryengine.execution.exchange.source.ISourceHandle;
 import org.apache.iotdb.db.queryengine.execution.fragment.FragmentInstanceContext;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNodeId;
 import org.apache.iotdb.mpp.rpc.thrift.TFragmentInstanceId;
+import org.apache.iotdb.metrics.utils.MetricLevel;
+import org.apache.iotdb.metrics.utils.MetricType;
 import org.apache.tsfile.read.common.block.TsBlock;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -49,7 +53,12 @@ public class QueryStateManager {
 
   private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
-  private ColQueryStateMachine stateMachine;//协同查询状态机
+  private final MetricService metricService = MetricService.getInstance();
+  private final AtomicBoolean metricsRegistered = new AtomicBoolean(false);
+  private volatile ColQueryState lastReportedState;
+  private volatile String lastReportedStateLabel;
+
+  private volatile ColQueryStateMachine stateMachine;//协同查询状态机
 
   private final ConcurrentHashMap<String, ScanStates> scanStatesMap = new ConcurrentHashMap<>();//SeriesPath定位scan算子的状态
 
@@ -79,21 +88,7 @@ public class QueryStateManager {
 
   private volatile ISourceHandle sourceHandle = null;//接收数据句柄
 
-  private static final String localhostIp = "127.0.0.1";
-
-  private static final String remoteIp = "127.0.0.1";
-
-  private static final String broadcastIp = "0.0.0.0";
-
-  private static final int localhostRpcPort = 9090;
-
-  private static final int remoteRpcPort = 9091;
-
-  private static final int localPort = 10740;
-
-  private static final int remotePort = 10744;
-
-  private String colQueryId;//协同查询的id
+  private volatile String colQueryId;//协同查询的id
 
   private static final String colPlanNodeId = "colPlanNodeId";
 
@@ -266,6 +261,7 @@ public class QueryStateManager {
     } finally {
       lock.writeLock().unlock();
     }
+    maybeInstallStateMetrics();
   }
 
   public String getQueryId() {
@@ -284,6 +280,7 @@ public class QueryStateManager {
     } finally {
       lock.writeLock().unlock();
     }
+    maybeInstallStateMetrics();
   }
 
   // Scan states operations
@@ -420,7 +417,7 @@ public class QueryStateManager {
 
   public boolean isScanPathExchange(String seriesPath) {
     if(scanExchangeMap.get(seriesPath) == null) {
-      System.out.println("isScanPathExchange:"+seriesPath+"is null!");
+//      System.out.println("isScanPathExchange:"+seriesPath+"is null!");
       return false;
     }
     return scanExchangeMap.get(seriesPath);
@@ -429,14 +426,14 @@ public class QueryStateManager {
   public boolean isScanPathExchangeByPlanNodeId(String planNodeId) {
     String scanPath = scanPathsMap.get(planNodeId);
     if(scanPath!=null) {
-      System.out.println("bug位置，当前获取到的是:"+planNodeId);
+//      System.out.println("bug位置，当前获取到的是:"+planNodeId);
       if(scanExchangeMap.get(scanPath)!=null) {
         return scanExchangeMap.get(scanPath);
       }
-      System.out.println("scan Exchange为空:"+scanPath+"is null!");
+//      System.out.println("scan Exchange为空:"+scanPath+"is null!");
       return  false;
     }
-    System.out.println("scanPath is null");
+//    System.out.println("scanPath is null");
     return false;
   }
 
@@ -479,25 +476,6 @@ public class QueryStateManager {
     this.leftOuterJoinCacheRight = null;
   }
 
-  public String getLocalhostIp() {
-    return localhostIp;
-  }
-
-  public String getRemoteIp() {
-    return remoteIp;
-  }
-
-  public String getBroadcastIp(){
-      return broadcastIp;
-  }
-
-  public int getLocalhostRpcPort() {
-    return localhostRpcPort;
-  }
-
-  public int getRemoteRpcPort() {
-    return remoteRpcPort;
-  }
 
   public void setRootIdentitySinkId(String rootIdentitySinkId) {
     this.rootIdentitySinkId = rootIdentitySinkId;
@@ -537,7 +515,8 @@ public class QueryStateManager {
 
   //创建并建立SourceHandle
   public void createAndSetSourceHandle() {
-    TEndPoint remoteEndpoint = new TEndPoint(remoteIp, remotePort);
+    final ColQueryConfig cfg = ColQueryConfig.getInstance();
+    TEndPoint remoteEndpoint = new TEndPoint(cfg.getRemoteIp(), cfg.getRemoteMppPort());
     TFragmentInstanceId localFragmentInstanceId = new TFragmentInstanceId(colQueryId,edgeFragmentId,"0");
     TFragmentInstanceId remoteFragmentInstanceId = new TFragmentInstanceId(colQueryId,cloudFragmentId,"0");
     long queryNum=1;
@@ -732,5 +711,103 @@ public class QueryStateManager {
     }
 
     return sb.toString();
+  }
+
+  private void maybeInstallStateMetrics() {
+    if (metricsRegistered.get()) {
+      return;
+    }
+    ColQueryStateMachine machine = this.stateMachine;
+    String queryId = this.colQueryId;
+    if (machine == null || !hasValidQueryId(queryId)) {
+      return;
+    }
+    if (metricsRegistered.compareAndSet(false, true)) {
+      machine.addStateChangeListener(this::updateStateMetrics);
+      updateStateMetrics(machine.getState());
+    }
+  }
+
+  private boolean hasValidQueryId(String queryId) {
+    return queryId != null && !queryId.isEmpty() && !"null".equalsIgnoreCase(queryId);
+  }
+
+  private void updateStateMetrics(ColQueryState newState) {
+    if (newState == null) {
+      return;
+    }
+    String queryId = this.colQueryId;
+    if (!hasValidQueryId(queryId)) {
+      return;
+    }
+    metricService.gauge(
+        newState.ordinal(),
+        Metric.COL_QUERY_STATE_VALUE.toString(),
+        MetricLevel.CORE,
+        Tag.NAME.toString(),
+        queryId);
+
+    ColQueryState previous = lastReportedState;
+    String previousLabel = lastReportedStateLabel;
+
+    String newLabel =
+        newState == ColQueryState.CLOSED && previous == ColQueryState.PRE_CLOSED
+            ? "COL_CLOSED"
+            : newState.name();
+
+    if (previous != null
+        && previousLabel != null
+        && (!Objects.equals(previous, newState) || !Objects.equals(previousLabel, newLabel))) {
+      metricService.remove(
+          MetricType.GAUGE,
+          Metric.COL_QUERY_STATE.toString(),
+          Tag.NAME.toString(),
+          queryId,
+          Tag.STATUS.toString(),
+          previousLabel);
+    }
+    if (Objects.equals(previous, newState) && Objects.equals(previousLabel, newLabel)) {
+      return;
+    }
+
+    metricService.gauge(
+        1,
+        Metric.COL_QUERY_STATE.toString(),
+        MetricLevel.CORE,
+        Tag.NAME.toString(),
+        queryId,
+        Tag.STATUS.toString(),
+        newLabel);
+    lastReportedState = newState;
+    lastReportedStateLabel = newLabel;
+  }
+
+  public void clearMetrics() {
+    if (!metricsRegistered.get()) {
+      return;
+    }
+    String queryId = this.colQueryId;
+    if (!hasValidQueryId(queryId)) {
+      return;
+    }
+    ColQueryState previous = lastReportedState;
+    String previousLabel = lastReportedStateLabel;
+    if (previous != null && previousLabel != null) {
+      metricService.remove(
+          MetricType.GAUGE,
+          Metric.COL_QUERY_STATE.toString(),
+          Tag.NAME.toString(),
+          queryId,
+          Tag.STATUS.toString(),
+          previousLabel);
+    }
+    metricService.remove(
+        MetricType.GAUGE,
+        Metric.COL_QUERY_STATE_VALUE.toString(),
+        Tag.NAME.toString(),
+        queryId);
+    lastReportedState = null;
+    lastReportedStateLabel = null;
+    metricsRegistered.set(false);
   }
 }

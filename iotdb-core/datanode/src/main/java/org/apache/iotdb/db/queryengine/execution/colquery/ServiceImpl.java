@@ -280,7 +280,8 @@ public class ServiceImpl implements C2EColService.Iface{
     }
 
     public void callAnsMessageWithLeftOuterJoin(String colQueryId, int edgeFragmentId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft,TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
-        try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
+        ColQueryConfig cfg = ColQueryConfig.getInstance();
+        try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
             TProtocol protocol = new TBinaryProtocol(transport);
             E2CColService.Client client = new E2CColService.Client(protocol);
             transport.open();
@@ -292,7 +293,8 @@ public class ServiceImpl implements C2EColService.Iface{
         }
     }
     public void callAnsMessage(String colQueryId, int edgeFragmentId, Map<String, ScanInfo> scanInfoMap) throws TException {
-        try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
+        ColQueryConfig cfg = ColQueryConfig.getInstance();
+        try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
             TProtocol protocol = new TBinaryProtocol(transport);
             E2CColService.Client client = new E2CColService.Client(protocol);
             transport.open();
@@ -304,7 +306,8 @@ public class ServiceImpl implements C2EColService.Iface{
         }
     }
     public void callAnsMessageWithSingleScan(String colQueryId, int edgeFragmentId, String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
-        try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
+        ColQueryConfig cfg = ColQueryConfig.getInstance();
+        try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
             TProtocol protocol = new TBinaryProtocol(transport);
             E2CColService.Client client = new E2CColService.Client(protocol);
             transport.open();

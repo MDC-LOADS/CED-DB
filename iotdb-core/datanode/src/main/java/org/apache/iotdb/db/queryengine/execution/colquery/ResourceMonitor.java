@@ -42,7 +42,8 @@ public class ResourceMonitor {
     public static void startColQuery(String sql,String colQueryId) {
 
 //        QueryStateManager queryStateManager = QueryStateManager.getInstance();
-        try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9091))) {
+        ColQueryConfig cfg = ColQueryConfig.getInstance();
+        try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
             TProtocol protocol = new TBinaryProtocol(transport);
             E2CColService.Client client = new E2CColService.Client(protocol);
             transport.open();

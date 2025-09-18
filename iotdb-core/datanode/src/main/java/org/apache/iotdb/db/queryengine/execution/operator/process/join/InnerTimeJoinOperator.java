@@ -563,6 +563,7 @@ public class InnerTimeJoinOperator implements ProcessOperator {
                     String planNodeId = sourceId.toString();
                     QueryStateManager stateManager = getSession();
                     if(stateManager.getSeriesPath(planNodeId) != null) {
+                        stateManager.updateScanInnerJoin(planNodeId, true);
                         return stateManager.getSeriesPath(planNodeId);
                     }
                 }
@@ -582,6 +583,10 @@ public class InnerTimeJoinOperator implements ProcessOperator {
                     seriesPathField.setAccessible(true);
                     Object seriesPathObj = seriesPathField.get(seriesScanUtil);
                     if (seriesPathObj != null) {
+                        QueryStateManager stateManager = getSession();
+                        if(stateManager!=null) {
+                            stateManager.updateScanInnerJoin(seriesPathObj.toString(), true);
+                        }
                         return seriesPathObj.toString();
                     }
                 }

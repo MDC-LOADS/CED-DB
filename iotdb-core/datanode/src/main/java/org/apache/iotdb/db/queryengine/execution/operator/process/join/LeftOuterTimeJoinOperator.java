@@ -94,6 +94,10 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
         this.left = leftChild;
         this.leftColumnCount = leftColumnCount;
         this.right = rightChild;
+        QueryStateManager stateManager = getSession();
+        if(stateManager != null) {
+            stateManager.setHasLeftOuterJoin(true);
+        }
     }
 
     @Override

@@ -240,6 +240,7 @@ public abstract class Driver implements IDriver {
     QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
     if (queryStateManager !=null && queryStateManager.getRootIdentitySinkId() != null
               && queryStateManager.getRootIdentitySinkId().equals(root.getOperatorContext().getPlanNodeId().getId())) {
+      System.out.println("当前的状态"+queryStateManager.getStateSummary());
       if(colQuery==10 && !iscolQuery){
         try{
           System.out.println("暂停0.5s吧");

@@ -120,6 +120,8 @@ public enum Metric {
   FRAGMENT_INSTANCE_MANAGER("fragment_instance_manager"),
   MEMORY_POOL("memory_pool"),
   LOCAL_EXECUTION_PLANNER("local_execution_planner"),
+  COL_QUERY_STATE("col_query_state"),
+  COL_QUERY_STATE_VALUE("col_query_state_value"),
   // file related
   FILE_SIZE("file_size"),
   FILE_COUNT("file_count"),

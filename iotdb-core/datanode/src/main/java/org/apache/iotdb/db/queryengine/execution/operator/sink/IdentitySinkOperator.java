@@ -22,6 +22,7 @@ package org.apache.iotdb.db.queryengine.execution.operator.sink;
 import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryConfig;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.ScanInfoConverter;
@@ -301,7 +302,8 @@ public class IdentitySinkOperator implements Operator {
   }
 
   public void callColQueryClose(Map<String, ScanInfo> scanInfoMap) throws TException{
-      try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9090))) {
+      ColQueryConfig cfg = ColQueryConfig.getInstance();
+      try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
           TProtocol protocol = new TBinaryProtocol(transport);
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();
@@ -317,7 +319,8 @@ public class IdentitySinkOperator implements Operator {
   }
 
   public void callColQueryCloseWithLeftOuterJoin(Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft,TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException{
-      try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9090))) {
+      ColQueryConfig cfg = ColQueryConfig.getInstance();
+      try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
           TProtocol protocol = new TBinaryProtocol(transport);
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();
@@ -333,7 +336,8 @@ public class IdentitySinkOperator implements Operator {
   }
 
   public void callColQueryCloseWithSingleScan(String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException{
-      try (TTransport transport = new TFramedTransport(new TSocket("127.0.0.1", 9090))) {
+      ColQueryConfig cfg = ColQueryConfig.getInstance();
+      try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
           TProtocol protocol = new TBinaryProtocol(transport);
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();

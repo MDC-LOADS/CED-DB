@@ -11,14 +11,13 @@ import java.net.InetSocketAddress;
 
 public class ServerStart {
 
-    private static final String broadcastIp = "0.0.0.0";
-    private static final int RPCPort = 9091;
-
     public void start(){
         //多线程非阻塞
         try{
-
-            TNonblockingServerSocket transport =new TNonblockingServerSocket(new InetSocketAddress(broadcastIp, RPCPort));//9091
+            ColQueryConfig cfg = ColQueryConfig.getInstance();
+            String bindIp = cfg.getBindIp();
+            int rpcPort = cfg.getLocalRpcPort();
+            TNonblockingServerSocket transport = new TNonblockingServerSocket(new InetSocketAddress(bindIp, rpcPort));
             E2CColService.Processor processor = new E2CColService.Processor(new ServiceImpl());
             TBinaryProtocol.Factory protocolFactory = new TBinaryProtocol.Factory();
             TFramedTransport.Factory tTransport = new TFramedTransport.Factory();
@@ -29,7 +28,6 @@ public class ServerStart {
             targs.transportFactory(tTransport);
 
             TServer server = new THsHaServer(targs);
-//            System.out.println("Starting the cloud server...");
             server.serve();
         }catch(Exception e){
             e.printStackTrace();

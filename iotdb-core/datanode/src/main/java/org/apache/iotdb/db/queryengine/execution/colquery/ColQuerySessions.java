@@ -57,6 +57,7 @@ public final class ColQuerySessions {
     QueryStateManager s = BY_CLOUD_QUERY_ID.remove(cloudQueryId);
     // Also remove from edge map if still present
     if (s != null) {
+      s.clearMetrics();
       // linear scan to remove
       BY_EDGE_QUERY_ID.values().removeIf(v -> v == s);
     }
@@ -65,6 +66,7 @@ public final class ColQuerySessions {
   public static void removeByEdgeQueryId(String edgeQueryId) {
     QueryStateManager s = BY_EDGE_QUERY_ID.remove(edgeQueryId);
     if (s != null) {
+      s.clearMetrics();
       BY_CLOUD_QUERY_ID.values().removeIf(v -> v == s);
     }
   }

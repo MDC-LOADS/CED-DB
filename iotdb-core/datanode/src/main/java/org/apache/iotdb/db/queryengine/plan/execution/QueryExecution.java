@@ -64,6 +64,8 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.layered.TFramedTransport;
 import org.apache.thrift.TException;
 
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryConfig;
+
 
 import org.apache.tsfile.read.common.block.TsBlock;
 import org.slf4j.Logger;
@@ -206,12 +208,12 @@ public class QueryExecution implements IQueryExecution {
     if (queryStateManager != null
         && queryStateManager.getStateMachine() != null
         && !this.logicalPlan.getContext().getSql().contains("Fetch Schema")) {
-      // 注册会话回收监听：进入 CLOSED/ABORT 后清理会话
+      // 注册状态监听：仅在异常终止(ABORT)时清理，正常结束保留信息以供后续诊断
       queryStateManager
           .getStateMachine()
           .addStateChangeListener(
               newState -> {
-                if (newState == ColQueryState.CLOSED || newState == ColQueryState.ABORT) {
+                if (newState == ColQueryState.ABORT) {
                   ColQuerySessions.removeByCloudQueryId(context.getQueryId().getId());
                 }
               });
@@ -776,8 +778,9 @@ public class QueryExecution implements IQueryExecution {
 
   public void callAckMessage(int cloudFragmentId){
       TTransport transport = null;
+    ColQueryConfig cfg = ColQueryConfig.getInstance();
       try  {
-          transport =  new TFramedTransport(new TSocket("127.0.0.1", 9090));
+          transport =  new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()));
           TProtocol protocol = new TBinaryProtocol(transport);
           C2EColService.Client client = new C2EColService.Client(protocol);
           transport.open();

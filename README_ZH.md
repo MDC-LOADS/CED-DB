@@ -1,64 +1,26 @@
-<!--
 
-    Licensed to the Apache Software Foundation (ASF) under one
-    or more contributor license agreements.  See the NOTICE file
-    distributed with this work for additional information
-    regarding copyright ownership.  The ASF licenses this file
-    to you under the Apache License, Version 2.0 (the
-    "License"); you may not use this file except in compliance
-    with the License.  You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing,
-    software distributed under the License is distributed on an
-    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-    KIND, either express or implied.  See the License for the
-    specific language governing permissions and limitations
-    under the License.
-
--->
 [English](./README.md) | [中文](./README_ZH.md)
 
-# IoTDB
-[![Main Mac and Linux](https://github.com/apache/iotdb/actions/workflows/main-unix.yml/badge.svg)](https://github.com/apache/iotdb/actions/workflows/main-unix.yml)
-[![Main Win](https://github.com/apache/iotdb/actions/workflows/main-win.yml/badge.svg)](https://github.com/apache/iotdb/actions/workflows/main-win.yml)<!--[![coveralls](https://coveralls.io/repos/github/apache/iotdb/badge.svg?branch=master)](https://coveralls.io/repos/github/apache/iotdb/badge.svg?branch=master)-->
-[![GitHub release](https://img.shields.io/github/release/apache/iotdb.svg)](https://github.com/apache/iotdb/releases)
+# CED-DB
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-![](https://github-size-badge.herokuapp.com/apache/iotdb.svg)
-![](https://img.shields.io/github/downloads/apache/iotdb/total.svg)
-![](https://img.shields.io/badge/platform-win%20%7C%20macos%20%7C%20linux-yellow.svg)
-![](https://img.shields.io/badge/java--language-1.8%20%7C%2011%20%7C%2017-blue.svg)
-[![Language grade: Java](https://img.shields.io/lgtm/grade/java/g/apache/iotdb.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/apache/iotdb/context:java)
-[![IoTDB Website](https://img.shields.io/website-up-down-green-red/https/shields.io.svg?label=iotdb-website)](https://iotdb.apache.org/)
 [![Maven Version](https://maven-badges.herokuapp.com/maven-central/org.apache.iotdb/iotdb-parent/badge.svg)](http://search.maven.org/#search|gav|1|g:"org.apache.iotdb")
-[![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://join.slack.com/t/apacheiotdb/shared_invite/zt-qvso1nj8-7715TpySZtZqmyG5qXQwpg)
+![](https://img.shields.io/badge/java--language-1.8%20%7C%2011%20%7C%2017-blue.svg)
 
 # 简介
-IoTDB (Internet of Things Database) 是一款时序数据库管理系统，可以为用户提供数据收集、存储和分析等服务。IoTDB由于其轻量级架构、高性能和高可用的特性，以及与 Hadoop 和 Spark 生态的无缝集成，满足了工业 IoT 领域中海量数据存储、高吞吐量数据写入和复杂数据查询分析的需求。
-更多功能请见[时序数据库IoTDB：功能详解与行业应用](https://www.timecho.com/archives/shi-xu-shu-ju-ku-iotdb-gong-neng-xiang-jie-yu-xing-ye-ying-yong)。
-
-IoTDB 依赖 [TsFile](https://github.com/apache/tsfile) 项目，它是一种专门用于时序数据管理的文件格式. TsFile 仓库的 `iotdb` 分支被用来为 IoTDB master 分支部署 SNAPSHOT 版本.
+CED-DB(Cloud-Edge-Device DataBase)是一款云边端协同时序数据库管理系统，可以为用户提供数据收集、存储和查询等任务。CED-DB由于可以实现云服务器、边缘设备和传感器的三端协同，因此可以在满足工业 IoT 领域中海量数据处理、存储和复杂数据查询分析的需求的同时，还可以将查询任务转移，分散边缘设备的查询压力。
 
 # 主要特点
 
-IoTDB的主要特点如下:
+CED-DB的主要特点如下：
 
-1. 灵活的部署策略。IoTDB为用户提供了一个在云平台或终端设备上的一键安装工具，以及一个连接云平台和终端上的数据的数据同步工具。
-2. 硬件成本低。IoTDB可以达到很高的磁盘存储压缩比。
-3. 高效的目录结构。IoTDB支持智能网络设备对复杂时间序列数据结构的高效组织，同类设备对时间序列数据的组织，海量复杂时间序列数据目录的模糊搜索策略。
-4. 高吞吐量读写。IoTDB支持数以百万计的低功耗设备的强连接数据访问、高速数据读写，适用于上述智能网络设备和混合设备。
-5. 丰富的查询语义。IoTDB支持跨设备和测量的时间序列数据的时间对齐、时间序列字段的计算(频域转换)和时间维度的丰富聚合函数支持。
-6. 学习成本非常低。IoTDB支持类似sql的语言、JDBC标准API和易于使用的导入/导出工具。
-7. 与先进的开放源码生态系统的无缝集成。IoTDB支持分析生态系统，如Hadoop、Spark和可视化工具(如Grafana)。
-
-有关IoTDB的最新信息，请访问[IoTDB官方网站](https://iotdb.apache.org/)。如果您在使用IoTDB时遇到任何问题或发现任何bug，请在[jira]中提交(https://issues.apache.org/jira/projects/IOTDB/issues)。
-
+1.分层架构与协同计算。CED-DB的云端提供高性能查询能力、高级分析与机器学习能力；边端负责本地数据预处理、初步分析、数据筛选与压缩，减少云端计算与存储压力；端侧直接从设备采集时序数据，具备低延迟处理能力，可实现本地存储。
+2.灵活的查询与分析能力。CED-DB在边端查询负载过高时，会将查询任务发送至云端无缝进行查询，并会在边端负载恢复时重新切换回边端，实现了查询的灵活切换。
+3.与先进的开放源码生态系统的无缝集成。CED-DB与IoTDB同源，在集成全部IoTDB全部功能的同时，支持LOADS数据库网页版Demo。
+4.学习成本非常低。使用IoTDB原生语言，支持类似sql的语言、JDBC标准API和易于使用的导入/导出工具。
 <!-- TOC -->
 
 ## 目录
-
-- [IoTDB](#iotdb)
+- [CED-DB](#ced-db)
 - [简介](#简介)
 - [主要特点](#主要特点)
   - [目录](#目录)
@@ -68,28 +30,30 @@ IoTDB的主要特点如下:
     - [从源码构建](#从源码构建)
       - [配置](#配置)
   - [开始](#开始)
-    - [启动 IoTDB](#启动-iotdb)
-    - [使用 IoTDB](#使用-iotdb)
+    - [启动 CED-DB](#启动-ced-db)
+    - [使用 CED-DB](#使用-ced-db)
       - [使用 Cli 命令行](#使用-cli-命令行)
-      - [基本的 IoTDB 命令](#基本的-iotdb-命令)
-    - [停止 IoTDB](#停止-iotdb)
-  - [只编译 server](#只编译-server)
-  - [只编译 cli](#只编译-cli)
-  - [导入导出CSV工具](#导入导出CSV工具)
+      - [基本的命令](#基本的命令)
+    - [停止 CED-DB](#停止-ced-db)
+- [联系我们](#联系我们)
+- [声明](#声明)
+
+
+
 
 <!-- /TOC -->
 
+
 # 快速开始
 
-这篇简短的指南将带您了解使用IoTDB的基本过程。如需更详细的介绍，请访问我们的网站[用户指南](https://iotdb.apache.org/zh/UserGuide/Master/QuickStart/QuickStart.html)。
+这篇简短的指南将带您了解使用CED-DB的基本过程。如需更详细的介绍，请联系我们。
 
 ## 环境准备
-
-要使用IoTDB，您需要:
-1. Java >= 1.8 (目前 1.8、11 到 17 已经被验证可用。请确保环变量境路径已正确设置)。
-2. Maven >= 3.6 (如果希望从源代码编译和安装IoTDB)。
+要使用CED-DB，您需要:
+1. Java >= 1.8 (目前 11 到 17 已经被验证可用，推荐使用15。请确保环变量境路径已正确设置)。
+2. Maven >= 3.6 。
 3. 设置 max open files 为 65535，以避免"too many open files"错误。
-4. （可选） 将 somaxconn 设置为 65535 以避免系统在高负载时出现 "connection reset" 错误。 
+4. （可选） 将 somaxconn 设置为 65535 以避免系统在高负载时出现 "connection reset" 错误。
     ```
     # Linux
     > sudo sysctl -w net.core.somaxconn=65535
@@ -100,15 +64,7 @@ IoTDB的主要特点如下:
 
 ## 安装
 
-IoTDB提供了三种安装方法，您可以参考以下建议，选择最适合您的一种:
-
-* 从源代码安装。如果需要自己修改代码，可以使用此方法。
-
-* 从二进制文件安装。推荐的方法是从官方网站下载二进制文件，您将获得一个开箱即用的二进制发布包。
-
-* 使用Docker: dockerfile的路径是https://github.com/apache/iotdb/tree/master/docker/src/main
-
-在这篇《快速入门》中，我们简要介绍如何使用源代码安装IoTDB。如需进一步资料，请参阅官网[用户指南](https://iotdb.apache.org/zh/UserGuide/Master/QuickStart/QuickStart.html)。
+在这篇《快速入门》中，我们简要介绍如何使用源代码安装CED-DB。
 
 ## 从源码构建
 
@@ -123,7 +79,7 @@ IoTDB提供了三种安装方法，您可以参考以下建议，选择最适合
 都添加如下参数即可：`-Dthrift.download-url=http://apache.org/licenses/LICENSE-2.0.txt -Dthrift.exec.absolute.path=<你的thrift可执行文件路径>`。
 
 
-同时我们预先编译了一个Thrift编译器，并将其上传到了GitHub ，借助一个Maven插件，在编译时可以自动将其下载。
+同时我们预先编译了一个Thrift编译器，并将其上传到了GitHub ，借助一个Maven插件，在编译时可以自动将其下载。（例如您在Linux系统下编译时，可忽略此段。）
 该预编译的Thrift编译器在gcc8，Ubuntu, CentOS, MacOS下可以工作，但是在更低的gcc
 版本以及其他操作系统上尚未确认。
 如果您发现因为网络问题总是提示下载不到thrift文件，那么您需要手动下载，并将编译器放置到目录`{project_root}\thrift\target\tools\thrift_0.12.0_0.13.0_linux.exe`。
@@ -132,47 +88,84 @@ IoTDB提供了三种安装方法，您可以参考以下建议，选择最适合
 如果您对Maven足够熟悉，您也可以直接修改我们的根pom文件来避免每次编译都使用上述参数。
 Thrift官方网址为：https://thrift.apache.org/
 
+### 代码准备
+
 从 git 克隆源代码:
+```
+https://github.com/MDC-LOADS/Cloud-Edge-Device-DataBase.git
+```
+默认的主分支是Edge分支，如果你想使用Cloud版本，请切换 tag:
+```
+git checkout CED-DB-Cloud
+```
+如果想使用Edge版本，请切换tag：
+```
+git checkout CED-DB-Edge
+```
+如果您想使用分布式环境，需要将下面的代码进行修改：
+# Edge版
+在`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/AbstractSeriesAggregationScanOperator.java`,`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/SeriesScanOperator.java`,`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/service/IOMonitor.java`,`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/ServiceImpl.java`中将`localhost`改为`cloud_ip`，端口号改为`10740`。
+在`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/ServerStart.java`中将`localhost`改为`0.0.0.0`。
+在`/conf_edge/iotdb-confignode.properties`中配置confignode：
+```
+cn_internal_address=edge_ip
+cn_internal_port=10710
+cn_consensus_port=10720
+cn_seed_config_node=edge_ip:10710
+```
+在`/conf_edge/iotdb-datanode.properties`中配置datanode：
+```
+dn_rpc_address=0.0.0.0
+dn_rpc_port=6667
+n_internal_address=0.0.0.0
+dn_internal_port=10730
+dn_mpp_data_exchange_port=10740
+dn_schema_region_consensus_port=10750
+dn_data_region_consensus_port=10760
+dn_seed_config_node=edge_ip:10710
+```
+# Cloud版
+在`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/AbstractSeriesAggregationScanOperator.java`,`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/SeriesScanOperator.java`,`iotdb-core\datanode\src\main\java\org\apache\iotdb\db\queryengine\execution\operator\process\FilterAndProjectOperator.java`中将`localhost`改为`cloud_ip`，端口号改为`10740`。
+在`iotdb-core\datanode\src\main\java\org\apache\iotdb\db\queryengine\plan\planner\OperatorTreeGenerator.java`中将`ackSend()`中的`localhost`改为`cloud_ip`，端口号改为`10740`。
+在`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/ServerStart.java`中将`localhost`改为`0.0.0.0`。
+在`/conf_cloud/iotdb-confignode.properties`中配置confignode：
+```
+cn_internal_address=cloud_ip
+cn_internal_port=10710
+cn_consensus_port=10720
+cn_seed_config_node=cloud_ip:10710
+```
+在`/conf_cloud/iotdb-datanode.properties`中配置datanode：
+```
+dn_rpc_address=0.0.0.0
+dn_rpc_port=6667
+n_internal_address=0.0.0.0
+dn_internal_port=10730
+dn_mpp_data_exchange_port=10740
+dn_schema_region_consensus_port=10750
+dn_data_region_consensus_port=10760
+dn_seed_config_node=cloud_ip:10710
+```
+### 源码编译 CED-DB
+
+在 Cloud-Edge-Device-DateBase 根目录下执行:
 
 ```
-git clone https://github.com/apache/iotdb.git
+> mvn clean package -pl distribution -am -DskipTests -Dcheckstyle.skip=true
 ```
 
-默认的主分支是master分支，如果你想使用某个发布版本x.x.x，请切换 tag:
+当您需要使用代理时，可以执行下述命令：
 
 ```
-git checkout vx.x.x
+> mvn -T 32 clean package -pl distribution -am -DskipTests -Dhttp.proxyHost=[your_ip] -Dhttp.proxyPort=[your_port] -Dhttps.proxyHost=[your_ip] -Dhttps.proxyPort=[your_port] -Dcheckstyle.skip=true
 ```
 
-或者切换大版本所在分支，如 1.0 版本的分支为 rel/1.0
+编译完成后, CED-DB 二进制包将生成在: "distribution/target".
 
-```
-git checkout rel/x.x
-```
-
-### 源码编译 IoTDB
-
-在 iotdb 根目录下执行:
-
-```
-> mvn clean package -pl distribution -am -DskipTests
-```
-
-编译完成后, IoTDB 二进制包将生成在: "distribution/target".
-
-### 只编译 cli
-
-在 iotdb/iotdb-client 目录下执行:
-
-```
-> mvn clean package -pl cli -am -DskipTests
-```
-
-编译完成后, IoTDB cli 将生成在 "cli/target".
 
 ### 编译其他模块
 
-通过添加 `-P with-cpp` 可以进行c++客户端API的编译。
+通过添加 `-P compile-cpp` 可以进行c++客户端API的编译。
 
 **注意："`thrift/target/generated-sources/thrift`"， "`thrift-sync/target/generated-sources/thrift`"，"`thrift-cluster/target/generated-sources/thrift`"，"`thrift-influxdb/target/generated-sources/thrift`" 和  "`antlr/target/generated-sources/antlr4`" 目录需要添加到源代码根中，以免在 IDE 中产生编译错误。**
 
@@ -180,81 +173,141 @@ git checkout rel/x.x
 
 ### 配置
 
-配置文件在"conf"文件夹下
+配置文件在"conf"文件夹下(Edge版本为edge_conf,Cloud版本为cloud_conf)
 * 环境配置模块(`datanode-env.bat`, `datanode-env.sh`),
 * 系统配置模块(`iotdb-datanode.properties`)
 * 日志配置模块(`logback.xml`)。
-
-有关详细信息，请参见[配置参数](https://iotdb.apache.org/zh/UserGuide/Master/Reference/DataNode-Config-Manual.html)。
 
 ## 开始
 
 您可以通过以下步骤来测试安装，如果执行后没有返回错误，安装就完成了。
 
-### 启动 IoTDB
+### 启动 CED-DB
 
-可以通过运行 sbin 文件夹下的 start-standalone 脚本启动 1C1D IoTDB。
+可以通过运行sbin文件夹下的脚本启动CED-DB，具体操作步骤如下(Linux系统)：
+
+启动Edge版本：
+
+需要在`distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh`文件中`source "$(dirname "$0")/iotdb-common.sh"`的下方添加下列命令：
 
 ```
-# Unix/OS X
-> sbin/start-standalone.sh
-
-# Windows
-> sbin\start-standalone.bat
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5200"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_edge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_edge/logback-confignode.xml"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_edge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.ConfigNodeEdge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_edge"
 ```
 
-### 使用 IoTDB
+在`distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-server-bin/sbin/start-datanode.sh`文件中`source "$(dirname "$0")/iotdb-common.sh"`的下方添加下列命令：
+
+```
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5210"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_edge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_edge/logback-datanode.xml"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_edge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.DataNodeEdge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_edge"
+```
+
+运行ConfigNode-Edge：
+
+```
+sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh
+```
+运行DataNode-Edge：
+
+```
+sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-server-bin/sbin/start-datanode.sh
+```
+
+启动Cloud版本：
+
+需要在`distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh`文件中`source "$(dirname "$0")/iotdb-common.sh"`的下方添加下列命令：
+
+```
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5200"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_cloud"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_cloud/logback-confignode.xml"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_cloud"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.ConfigNodeEdge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_cloud"
+```
+
+在`distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-server-bin/sbin/start-datanode.sh`文件中`source "$(dirname "$0")/iotdb-common.sh"`的下方添加下列命令：
+
+```
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5210"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_cloud"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_cloud/logback-datanode.xml"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_cloud"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.DataNodeEdge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_cloud"
+```
+
+运行ConfigNode-Cloud：
+
+```
+sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh
+```
+运行DataNode-Cloud：
+
+```
+sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-server-bin/sbin/start-datanode.sh
+```
+注意：如果您需要伪分布式环境，请将上述的边端端口号改为5201和5211.
+
+### 使用 CED-DB
 
 #### 使用 Cli 命令行
 
-IoTDB提供了与服务器交互的不同方式，这里我们将介绍使用 Cli 工具插入和查询数据的基本步骤。
+CED-DB提供了与服务器交互的不同方式，这里我们将介绍使用 Cli 工具插入和查询数据的基本步骤。
 
-安装 IoTDB 后，有一个默认的用户`root`，它的默认密码也是`root`。用户可以使用这个
-默认用户登录 Cli 并使用 IoTDB。Cli 的启动脚本是 sbin 文件夹中的 start-cli 脚本。
+安装 CED-DB 后，有一个默认的用户`root`，它的默认密码也是`root`。用户可以使用这个
+默认用户登录 Cli 并使用 CED-DB。Cli 的启动脚本是 sbin 文件夹中的 start-cli 脚本。
 在执行脚本时，用户应该指定 IP，端口，USER_NAME 和 密码。默认参数为`-h 127.0.0.1 -p 6667 -u root -pw root`。
 
 
-下面是启动 Cli 的命令:
+下面是启动 Cli-Edge 的命令:
 
 ```
-# Unix/OS X
-> sbin/start-cli.sh -h 127.0.0.1 -p 6667 -u root -pw root
+> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/sbin/start-cli.sh -p 6668
+```
+下面是启动 Cli-Cloud 的命令:
 
-# Windows
-> sbin\start-cli.bat -h 127.0.0.1 -p 6667 -u root -pw root
+```
+> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/sbin/start-cli.sh -p 6667
 ```
 
 命令行客户端是交互式的，所以如果一切就绪，您应该看到欢迎标志和声明:
 
 ```
- _____       _________  ______   ______
-|_   _|     |  _   _  ||_   _ `.|_   _ \
-  | |   .--.|_/ | | \_|  | | `. \ | |_) |
-  | | / .'`\ \  | |      | |  | | |  __'.
- _| |_| \__. | _| |_    _| |_.' /_| |__) |
-|_____|'.__.' |_____|  |______.'|_______/  version x.x.x
+  ______  ________ ______      ______   ______      
+ .' ___  ||_   __  |_   _ `.   |_   _ `.|_   _ \    
+/ .'   \_|  | |_ \_| | | `. \    | | `. \ | |_) |  
+| |         |  _| _  | |  | |    | |  | | |  __'.  
+\ `.___.'\ _| |__/ |_| |_.' /   _| |_.' /_| |__) | 
+ `.____ .'|________|______.'   |______.'|_______/   
+  version x.x.x
 
-
-IoTDB> login successfully
-IoTDB>
+CED-DB> login successfully
+CED-DB>
 ```
-
-#### 基本的 IoTDB 命令
+#### 基本的命令
 
 现在，让我们介绍创建 timeseries、插入数据和查询数据的方法。
 
-
-IoTDB中的数据组织为 timeseries。每个 timeseries 包含多个`数据-时间`对，由一个 database 拥有。
+CED-DB的命令与IoTDB的命令相同。CED-DB中的数据组织为 timeseries。每个 timeseries 包含多个`数据-时间`对，由一个 database 拥有。
 在定义 timeseries 之前，我们应该先使用 CREATE DATABASE 来创建一个数据库，下面是一个例子:
 
 ```
-IoTDB> CREATE DATABASE root.ln
+CED-DB> CREATE DATABASE root.ln
 ```
 
 我们也可以使用`SHOW DATABASES`来检查已创建的数据库:
 
 ```
-IoTDB> SHOW DATABASES
+CED-DB> SHOW DATABASES
 +--------+
 |Database|
 +--------+
@@ -268,17 +321,17 @@ Total line number = 1
 
 
 ```
-IoTDB> CREATE TIMESERIES root.ln.wf01.wt01.status WITH DATATYPE=BOOLEAN, ENCODING=PLAIN
-IoTDB> CREATE TIMESERIES root.ln.wf01.wt01.temperature WITH DATATYPE=FLOAT, ENCODING=RLE
+CED-DB> CREATE TIMESERIES root.ln.wf01.wt01.status WITH DATATYPE=BOOLEAN, ENCODING=PLAIN
+CED-DB> CREATE TIMESERIES root.ln.wf01.wt01.temperature WITH DATATYPE=FLOAT, ENCODING=RLE
 ```
 
-为了查询特定的timeseries，我们可以使用 `SHOW TIMESERIES <Path>`. <Path> 表示被查询的 timeseries 的路径. 默认值是`null`, 表示查询系统中所有的 timeseries (同`SHOW TIMESERIES root`). 
+为了查询特定的timeseries，我们可以使用 `SHOW TIMESERIES <Path>`. <Path> 表示被查询的 timeseries 的路径. 默认值是`null`, 表示查询系统中所有的 timeseries (同`SHOW TIMESERIES root`).
 以下是一些示例:
 
 1. 查询系统中所有 timeseries:
 
 ```
-IoTDB> SHOW TIMESERIES
+CED-DB> SHOW TIMESERIES
 +-----------------------------+-----+-------------+--------+--------+-----------+----+----------+
 |                   timeseries|alias|database|dataType|encoding|compression|tags|attributes|
 +-----------------------------+-----+-------------+--------+--------+-----------+----+----------+
@@ -291,7 +344,7 @@ Total line number = 2
 2. 查询指定的 timeseries(root.ln.wf01.wt01.status):
 
 ```
-IoTDB> SHOW TIMESERIES root.ln.wf01.wt01.status
+CED-DB> SHOW TIMESERIES root.ln.wf01.wt01.status
 +------------------------+-----+-------------+--------+--------+-----------+----+----------+
 |              timeseries|alias|database|dataType|encoding|compression|tags|attributes|
 +------------------------+-----+-------------+--------+--------+-----------+----+----------+
@@ -300,18 +353,18 @@ IoTDB> SHOW TIMESERIES root.ln.wf01.wt01.status
 Total line number = 1
 ```
 
-插入 timeseries 数据是IoTDB的一个基本操作，你可以使用`INSERT` 命令来完成这个操作。
+插入 timeseries 数据是CED-DB的一个基本操作，你可以使用`INSERT` 命令来完成这个操作。
 在插入之前，您应该指定时间戳和后缀路径名:
 
 ```
-IoTDB> INSERT INTO root.ln.wf01.wt01(timestamp,status) values(100,true);
-IoTDB> INSERT INTO root.ln.wf01.wt01(timestamp,status,temperature) values(200,false,20.71)
+CED-DB> INSERT INTO root.ln.wf01.wt01(timestamp,status) values(100,true);
+CED-DB> INSERT INTO root.ln.wf01.wt01(timestamp,status,temperature) values(200,false,20.71)
 ```
 
 你刚才插入的数据会显示如下:
 
 ```
-IoTDB> SELECT status FROM root.ln.wf01.wt01
+CED-DB> SELECT status FROM root.ln.wf01.wt01
 +-----------------------------+------------------------+
 |                         Time|root.ln.wf01.wt01.status|
 +-----------------------------+------------------------+
@@ -324,7 +377,7 @@ Total line number = 2
 您还可以使用一条SQL语句查询多个 timeseries 数据:
 
 ```
-IoTDB> SELECT * FROM root.ln.wf01.wt01
+CED-DB> SELECT * FROM root.ln.wf01.wt01
 +-----------------------------+-----------------------------+------------------------+
 |                         Time|root.ln.wf01.wt01.temperature|root.ln.wf01.wt01.status|
 +-----------------------------+-----------------------------+------------------------+
@@ -337,16 +390,16 @@ Total line number = 2
 如果需要修改 Cli 中的时区，您可以使用以下语句:
 
 ```
-IoTDB> SET time_zone=+00:00
+CED-DB> SET time_zone=+00:00
 Time zone has set to +00:00
-IoTDB> SHOW time_zone
+CED-DB> SHOW time_zone
 Current time zone: Z
 ```
 
 之后查询结果将会以更新后的新时区显示:
 
 ```
-IoTDB> SELECT * FROM root.ln.wf01.wt01
+CED-DB> SELECT * FROM root.ln.wf01.wt01
 +------------------------+-----------------------------+------------------------+
 |                    Time|root.ln.wf01.wt01.temperature|root.ln.wf01.wt01.status|
 +------------------------+-----------------------------+------------------------+
@@ -359,43 +412,32 @@ Total line number = 2
 你可以使用如下命令退出:
 
 ```
-IoTDB> quit
+CED-DB> quit
 or
-IoTDB> exit
+CED-DB> exit
 ```
 
-有关IoTDB SQL支持的命令的更多信息，请参见[用户指南](https://iotdb.apache.org/zh/UserGuide/Master/QuickStart/QuickStart.html)。
+由于CED-DB与IoTDB的指令相同，有关IoTDB SQL支持的命令的更多信息，请参见[IoTDB用户指南](https://iotdb.apache.org/zh/UserGuide/Master/QuickStart/QuickStart.html)。
 
-### 停止 IoTDB
+### 停止 CED-DB
 
 server 可以使用 "ctrl-C" 或者执行下面的脚本:
 
 ```
-# Unix/OS X
-> sbin/stop-standalone.sh
-
-# Windows
-> sbin\stop-standalone.bat
+> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/stop-standalone.sh
 ```
-
-# 导入导出CSV工具
-
-查看 [导入导出CSV工具](https://iotdb.apache.org/zh/UserGuide/latest/Tools-System/Import-Export-Tool.html)
-
-# 常见编译错误
-查看 [常见编译错误](https://iotdb.apache.org/zh/Community/Development-Guide.html)
-
 # 联系我们
+
 ### QQ群
 
-* Apache IoTDB 交流群：659990460
+* MDC CED-DB 交流群：973755143
 
 ### Wechat Group
 
-* 添加好友 `tietouqiao` 或者 `liutaohua001`，我们会邀请您进群
+* 添加好友 `zcy09120016`，我们会邀请您进群
 
-### Slack
+# 声明
+* 本项目由哈尔滨工业大学海量数据计算研究中心主要负责完成，IoTDB团队作为合作方参与项目的部分工作。
+* 本项目为《云边端协同数据库管理系统》项目的一个研究成果，相关成果仅用于学术研究目的，未经授权请勿转载或用于商业用途。
 
-* https://join.slack.com/t/apacheiotdb/shared_invite/zt-qvso1nj8-7715TpySZtZqmyG5qXQwpg
-
-获取更多内容，请查看 [加入社区](https://github.com/apache/iotdb/issues/1995) 
+<!-- 获取更多内容，请查看 [加入社区](https://github.com/apache/iotdb/issues/1995)  -->

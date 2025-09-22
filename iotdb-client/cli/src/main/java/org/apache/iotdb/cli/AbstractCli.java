@@ -97,7 +97,7 @@ public abstract class AbstractCli {
   static final String SET_FETCH_SIZE = "set fetch_size";
   static final String SHOW_FETCH_SIZE = "show fetch_size";
   private static final String HELP = "help";
-  static final String IOTDB_CLI_PREFIX = "IoTDB";
+  static final String IOTDB_CLI_PREFIX = "CED-DB-EDGE";
   static final String SCRIPT_HINT = "./start-cli.sh(start-cli.bat if Windows)";
   static final String QUIT_COMMAND = "quit";
   static final String EXIT_COMMAND = "exit";
@@ -368,27 +368,27 @@ public abstract class AbstractCli {
   static void displayLogo(CliContext ctx, String logo, String version, String buildInfo) {
     ctx.getPrinter()
         .println(
-            (logo != null
-                    ? logo
-                    : (" _____       _________  ______   ______    \n"
-                        + "|_   _|     |  _   _  ||_   _ `.|_   _ \\   \n"
-                        + "  | |   .--.|_/ | | \\_|  | | `. \\ | |_) |  \n"
-                        + "  | | / .'`\\ \\  | |      | |  | | |  __'.  \n"
-                        + " _| |_| \\__. | _| |_    _| |_.' /_| |__) | \n"
-                        + "|_____|'.__.' |_____|  |______.'|_______/  "))
+                 "  ______  ________ ______      ______   ______      \n"
+                +" .' ___  ||_   __  |_   _ `.   |_   _ `.|_   _ \\    \n"
+                +"/ .'   \\_|  | |_ \\_| | | `. \\    | | `. \\ | |_) |  \n"
+                +"| |         |  _| _  | |  | |    | |  | | |  __'.  \n"
+                +"\\ `.___.'\\ _| |__/ |_| |_.' /   _| |_.' /_| |__) | \n"
+                +" `.____ .'|________|______.'   |______.'|_______/   \n"
                 + "version "
-                + version
+                + "Edge"
                 + " (Build: "
-                + (buildInfo != null ? buildInfo : "UNKNOWN")
+                + (buildInfo != null ? buildInfo : "CED-DB-Edge")
                 + ")"
                 + "\n"
                 + "                                           \n");
   }
 
+
+
+
+
   static void echoStarting(CliContext ctx) {
-    ctx.getPrinter().println("---------------------");
-    ctx.getPrinter().println("Starting IoTDB Cli");
-    ctx.getPrinter().println("---------------------");
+    ctx.getPrinter().println("===[ Starting MDC CED-DB Edge Cli ]==============");
   }
 
   static OperationResult handleInputCmd(CliContext ctx, String cmd, IoTDBConnection connection) {

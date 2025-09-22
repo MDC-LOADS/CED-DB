@@ -48,7 +48,7 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
     public TsBlock next() throws Exception {
 
         try{
-            Thread.sleep(500);
+            Thread.sleep(10);
             System.out.println("stop scan 2s");
         }catch (InterruptedException e){
             e.printStackTrace();

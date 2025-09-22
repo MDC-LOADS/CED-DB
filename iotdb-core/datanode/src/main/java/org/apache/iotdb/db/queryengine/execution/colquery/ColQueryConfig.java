@@ -24,6 +24,8 @@ public final class ColQueryConfig {
   private int remoteRpcPort = 9091;
   private int localMppPort = 10740;
   private int remoteMppPort = 10744;
+  private boolean iscolQuery = false;
+  private int colQueryWait=0;
 
   private ColQueryConfig() { load(); }
 
@@ -70,6 +72,8 @@ public final class ColQueryConfig {
     this.remoteRpcPort = parseInt(props.getProperty("colquery.remote.rpc.port"), remoteRpcPort);
     this.localMppPort = parseInt(props.getProperty("colquery.local.mpp.port"), localMppPort);
     this.remoteMppPort = parseInt(props.getProperty("colquery.remote.mpp.port"), remoteMppPort);
+    this.iscolQuery = Boolean.parseBoolean(props.getProperty("colquery.iscol.query"));
+    this.colQueryWait = parseInt(props.getProperty("colquery.col.query.wait"), colQueryWait);
   }
 
   private static int parseInt(String s, int def) {
@@ -84,5 +88,10 @@ public final class ColQueryConfig {
   public int getRemoteRpcPort() { return remoteRpcPort; }
   public int getLocalMppPort() { return localMppPort; }
   public int getRemoteMppPort() { return remoteMppPort; }
+  public boolean isColQuery() { return iscolQuery; }
+  public int getColQueryWait() { return colQueryWait; }
+  public void addColQueryWait() {
+    this.colQueryWait = this.colQueryWait + 1;
+  }
 }
 

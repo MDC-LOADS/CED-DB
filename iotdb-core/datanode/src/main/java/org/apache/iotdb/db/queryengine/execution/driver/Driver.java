@@ -21,6 +21,7 @@ package org.apache.iotdb.db.queryengine.execution.driver;
 
 import org.apache.iotdb.commons.utils.FileUtils;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryConfig;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.colquery.ResourceMonitor;
@@ -241,17 +242,13 @@ public abstract class Driver implements IDriver {
     if (queryStateManager !=null && queryStateManager.getRootIdentitySinkId() != null
               && queryStateManager.getRootIdentitySinkId().equals(root.getOperatorContext().getPlanNodeId().getId())) {
       System.out.println("当前的状态"+queryStateManager.getStateSummary());
-      if(colQuery==10 && !iscolQuery){
-        try{
-          System.out.println("暂停0.5s吧");
-          Thread.sleep(500);
-        }catch (InterruptedException e){
-          Thread.currentThread().interrupt();
-        }
+      ColQueryConfig cqc = ColQueryConfig.getInstance();
+      if(cqc.isColQuery() && colQuery==cqc.getColQueryWait() && !iscolQuery){
         ResourceMonitor.startColQuery(queryStateManager.getSql(), colQueryId);
         System.out.println("协同应在此处启动！！！");
         iscolQuery = true;
       }else{
+        System.out.println("colQuery:"+colQuery);
         colQuery++;
       }
     }

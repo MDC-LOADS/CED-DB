@@ -520,11 +520,11 @@ public class QueryStateManager {
       FragmentInstanceContext instanceContext = new FragmentInstanceContext(query_num);
       DownStreamChannelIndex downStreamChannelIndex = new DownStreamChannelIndex(0);
       String localPlanNodeId = "colCloudPlanNodeId";
-      System.out.println("localPlanNodeId:"+localPlanNodeId);
-      System.out.println("colPlanNodeId:"+colPlanNodeId);
-      System.out.println("colQueryId:"+colQueryId);
-      System.out.println("edgeFragmentId:"+edgeFragmentId);
-      System.out.println("cloudFragmentId:"+cloudFragmentId);
+//      System.out.println("localPlanNodeId:"+localPlanNodeId);
+//      System.out.println("colPlanNodeId:"+colPlanNodeId);
+//      System.out.println("colQueryId:"+colQueryId);
+//      System.out.println("edgeFragmentId:"+edgeFragmentId);
+//      System.out.println("cloudFragmentId:"+cloudFragmentId);
 
       this.sinkHandle =
               MPP_DATA_EXCHANGE_MANAGER.createShuffleSinkHandle(

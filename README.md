@@ -1,98 +1,60 @@
-<!--
-
-    Licensed to the Apache Software Foundation (ASF) under one
-    or more contributor license agreements.  See the NOTICE file
-    distributed with this work for additional information
-    regarding copyright ownership.  The ASF licenses this file
-    to you under the Apache License, Version 2.0 (the
-    "License"); you may not use this file except in compliance
-    with the License.  You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing,
-    software distributed under the License is distributed on an
-    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-    KIND, either express or implied.  See the License for the
-    specific language governing permissions and limitations
-    under the License.
-
--->
 [English](./README.md) | [中文](./README_ZH.md)
 
-# IoTDB
-[![Unit-Test](https://github.com/apache/iotdb/actions/workflows/unit-test.yml/badge.svg)](https://github.com/apache/iotdb/actions/workflows/unit-test.yml)
-[![codecov](https://codecov.io/github/apache/iotdb/graph/badge.svg?token=ejF3UGk0Nv)](https://codecov.io/github/apache/iotdb)
-[![GitHub release](https://img.shields.io/github/release/apache/iotdb.svg)](https://github.com/apache/iotdb/releases)
+# CED-DB
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-![](https://github-size-badge.herokuapp.com/apache/iotdb.svg)
-![](https://img.shields.io/github/downloads/apache/iotdb/total.svg)
-![](https://img.shields.io/badge/platform-win%20%7C%20macos%20%7C%20linux-yellow.svg)
-![](https://img.shields.io/badge/java--language-1.8%20%7C%2011%20%7C%2017-blue.svg)
-[![IoTDB Website](https://img.shields.io/website-up-down-green-red/https/shields.io.svg?label=iotdb-website)](https://iotdb.apache.org/)
 [![Maven Version](https://maven-badges.herokuapp.com/maven-central/org.apache.iotdb/iotdb-parent/badge.svg)](http://search.maven.org/#search|gav|1|g:"org.apache.iotdb")
-[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/apache/iotdb)
-[![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://join.slack.com/t/apacheiotdb/shared_invite/zt-qvso1nj8-7715TpySZtZqmyG5qXQwpg)
+![](https://img.shields.io/badge/java--language-1.8%20%7C%2011%20%7C%2017-blue.svg)
 
 # Overview
-
-IoTDB (Internet of Things Database) is a data management system for time series data, which provides users with specific services, including data collection, storage and analysis. Due to its lightweight structure, high performance and usable features, together with its seamless integration with the Hadoop and Spark ecosystem, IoTDB meets the requirements of massive dataset storage, high throughput data input, and complex data analysis in the industrial IoT field.
-
-[Click for More Information](https://www.timecho.com/archives/shi-xu-shu-ju-ku-iotdb-gong-neng-xiang-jie-yu-xing-ye-ying-yong)
-
-IoTDB depends on [TsFile](https://github.com/apache/tsfile) which is a columnar storage file format designed for time series data. The branch `iotdb` of TsFile project is used to deploy SNAPSHOT version for IoTDB project.
+CED-DB (Cloud-Edge-Device DataBase) is a cloud-edge-device collaborative time-series database management system that provides users with data collection, storage, and query capabilities. By enabling seamless collaboration between cloud servers, edge devices, and sensors, CED-DB efficiently handles massive data processing, storage, and complex queries in the industrial IoT domain. Additionally, it can offload query tasks to the cloud, thereby reducing query pressure on edge devices.
 
 # Main Features
+The main features of CED-DB are as follows:
 
-The main features of IoTDB are as follows:
-
-1. Flexible deployment strategy. IoTDB provides users with a one-click installation tool on either the cloud platform or the terminal devices, and a data synchronization tool bridging the data on cloud platform and terminals.
-2. Low cost on hardware. IoTDB can reach a high compression ratio of disk storage.
-3. Efficient directory structure. IoTDB supports efficient organization for complex time series data structures from intelligent networking devices, organization for time series data from devices of the same type, and fuzzy searching strategy for massive and complex directory of time series data.
-4. High-throughput read and write. IoTDB supports millions of low-power devices' strong connection data access, high-speed data read and write for intelligent networking devices and mixed devices mentioned above.
-5. Rich query semantics. IoTDB supports time alignment for time series data across devices and measurements, computation in time series field (frequency domain transformation) and rich aggregation function support in time dimension.
-6. Easy to get started. IoTDB supports SQL-like language, JDBC standard API and import/export tools which are easy to use.
-7. Seamless integration with state-of-the-practice Open Source Ecosystem. IoTDB supports analysis ecosystems, such as Hadoop and Spark, as well as visualization tools, such as Grafana.
-
-For the latest information about IoTDB, please visit [IoTDB official website](https://iotdb.apache.org/). If you encounter any problems or identify any bugs while using IoTDB, please report an issue in [Jira](https://issues.apache.org/jira/projects/IOTDB/issues).
+1. Hierarchical Architecture and Collaborative Computing.
+* The cloud provides high-performance query capabilities, advanced analytics, and machine learning capabilities.
+* The edge is responsible for local data preprocessing, preliminary analysis, data filtering, and compression, reducing computational and storage pressure on the cloud.
+* The device directly collects time-series data from sensors, offering low-latency processing and local storage capabilities.
+2. Flexible Query and Analysis Capabilities
+* When the query load at the edge becomes too high, CED-DB seamlessly offloads queries to the cloud for processing. Once the edge load returns to normal, the queries are switched back to the edge, enabling flexible query switching.
+3. Seamless Integration with Advanced Open-Source Ecosystems
+* CED-DB shares the same origin as IoTDB and fully integrates all of IoTDB's functionalities.
+* Additionally, it supports LOADS database web-based demos for enhanced usability.
+4. Low Learning Curve
+* CED-DB uses IoTDB's native query language, supporting SQL-like syntax, JDBC standard API, and easy-to-use import/export tools, making it easy to learn and use.
 
 <!-- TOC -->
-
 ## Outline
 
-- [IoTDB](#iotdb)
+- [CED-DB](#ced-db)
 - [Overview](#overview)
 - [Main Features](#main-features)
   - [Outline](#outline)
 - [Quick Start](#quick-start)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-    - [Build from source](#build-from-source)
-    - [Configurations](#configurations)
+    - [Building from Source](#building-from-source)
+      - [Configurations](#configurations)
   - [Start](#start)
-    - [Start IoTDB](#start-iotdb)
-    - [Use IoTDB](#use-iotdb)
+    - [Start CED-DB](#start-ced-db)
+    - [Use CED-DB](#use-ced-db)
       - [Use Cli](#use-cli)
-      - [Basic commands for IoTDB](#basic-commands-for-iotdb)
-    - [Stop IoTDB](#stop-iotdb)
-  - [Only build server](#only-build-server)
-  - [Only build cli](#only-build-cli)
-  - [Usage of CSV Import and Export Tool](#usage-of-csv-import-and-export-tool)
+      - [Basic Commands](#basic-commands)
+    - [Stop CED-DB](#stop-ced-db)
+- [Contact Us](#contact-us)
+- [Statement](#statement)
 
-<!-- /TOC -->
 
 # Quick Start
 
-This short guide will walk you through the basic process of using IoTDB. For a more detailed introduction, please visit our website's [User Guide](https://iotdb.apache.org/UserGuide/Master/QuickStart/QuickStart.html).
+This short guide will walk you through the basic process of using CED-DB. For more detailed information, please feel free to contact us.
 
 ## Prerequisites
-
-To use IoTDB, you need to have:
-
-1. Java >= 1.8 (1.8, 11 to 17 are verified. Please make sure the environment path has been set accordingly).
-2. Maven >= 3.6 (If you want to compile and install IoTDB from source code).
-3. Set the max open files num as 65535 to avoid the "too many open files" error.
-4. (Optional) Set the somaxconn as 65535 to avoid "connection reset" error when the system is under high load.
+To use CED-DB, you need:
+1. Java >= 1.8 (Versions 11 to 17 have been verified; Java 15 is recommended. Ensure the environment variables are set correctly).
+2. Maven >= 3.6.
+3. Set max open files to 65,535 to avoid the "too many open files" error.
+4. (Optional) Set `somaxconn` to 65,535 to prevent "connection reset" errors under high loads.
     ```
     # Linux
     > sudo sysctl -w net.core.somaxconn=65535
@@ -100,186 +62,60 @@ To use IoTDB, you need to have:
     # FreeBSD or Darwin
     > sudo sysctl -w kern.ipc.somaxconn=65535
     ```
-### Linux
-
-(This guide is based on an installation of Ubuntu 22.04.)
-
-#### Git
-
-Make sure `Git` is installed, if it's missing, simply install it via:
-
-    sudo apt install git
-
-#### Java
-
-Make sure `Java` is installed, if it's missing, simply install it via:
-
-    sudo apt install default-jdk
-
-#### Flex
-
-    sudo apt install flex
-
-#### Bison
-
-    sudo apt install bison
-
-#### Boost
-
-    sudo apt install libboost-all-dev
-
-#### OpenSSL header files
-
-Usually OpenSSL is already installed, however it's missing the header files we need to compile.
-So ensure these are installed:
-
-    sudo apt install libssl-dev
-
-### Mac OS
-
-#### Git
-
-First ensure `git` works.
-
-Usually on a new Mac, as soon as you simply type `git` in a `Terminal` window, a popup will come up and ask if you want to finish installing the Mac developer tools. 
-Just say yes.
-As soon as this is finished, you are free to use `git`.
-
-#### Homebrew
-
-Then install `Homebrew` - If this hasn't been installed yet, as we are going to be installing everything using `Homebrew`.
-
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-#### Java
-
-As soon as that's done install `Java`, if this hasn't been installed yet:
-
-    brew install java
-
-Depending on your version of Homebrew, it will tell you to do one of the following (depending on the type of processor in your device).
-
-Mainly on the Intel-based models:
-
-    sudo ln -sfn /usr/local/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk
-
-Mainly on the ARM-based models:
-
-    sudo ln -sfn /opt/homebrew/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk
-
-#### CPP Prerequisites 
-
-Building `Thrift` requires us to add two more dependencies to the picture.
-
-This however is only needed when enabling the `with-cpp` profile:
-
-    brew install boost
-    brew install bison
-    brew install openssl
-
-### Windows
-
-#### Chocolatey
-
-Then install `Chocolatey` - If this hasn't been installed yet, as we are going to be installing everything using `Chocolatey`.
-
-https://chocolatey.org/install
-
-#### Git
-
-    choco install git.install
-
-#### Java
-
-    choco install openjdk
-
-#### Visual Studio 19 2022
-
-    choco install visualstudio2022community
-    choco install visualstudio2022buildtools
-    choco install visualstudio2022-workload-nativedesktop
-
-#### Flex / Bison
-
-    choco install winflexbison
-
-#### Boost
-
-    choco install boost-msvc-14.2
-
-#### OpenSSL
-
-    choco install openssl
-
 ## Installation
 
-IoTDB provides three installation methods, you can refer to the following suggestions, choose the one fits you best:
-
-* Installation from source code. If you need to modify the code yourself, you can use this method.
-* Installation from binary files. Download the binary files from the official website. This is the recommended method, in which you will get a binary released package which is out-of-the-box.
-* Using Docker：The path to the dockerfile is [here](https://github.com/apache/iotdb/tree/master/docker/src/main).
-
-
-Here in the Quick Start, we give a brief introduction of using source code to install IoTDB. For further information, please refer to [User Guide](https://iotdb.apache.org/UserGuide/Master/QuickStart/QuickStart.html).
+Here in the Quick Start, we give a brief introduction of using source code to install CED-DB.
 
 ## Build from source
 
 ### Prepare Thrift compiler
 
-Skip this chapter if you are using Windows. 
+Skip this chapter if you are using Windows.
 
 As we use Thrift for our RPC module (communication and
 protocol definition), we involve Thrift during the compilation, so Thrift compiler 0.13.0 (or
 higher) is required to generate Thrift Java code. Thrift officially provides binary compiler for
-Windows, but unfortunately, they do not provide that for Unix OSs. 
+Windows, but unfortunately, they do not provide that for Unix OSs.
 
-If you have permission to install new software, use `apt install` or `yum install` or `brew install`
-to install the Thrift compiler. (If you already have installed the thrift compiler, skip this step.)
+If you have permission to install new softwares, use `apt install` or `yum install` or `brew install`
+to install the Thrift compiler (If you already have installed the thrift compiler, skip this step).
 Then, you may add the following parameter
 when running Maven: `-Dthrift.download-url=http://apache.org/licenses/LICENSE-2.0.txt -Dthrift.exec.absolute.path=<YOUR LOCAL THRIFT BINARY FILE>`.
 
 If not, then you have to compile the thrift compiler, and it requires you install a boost library first.
-Therefore, we compiled a Unix compiler ourselves and put it onto GitHub, and with the help of a
-maven plugin, it will be downloaded automatically during compilation. 
-This compiler works fine with gcc8 or later, Ubuntu MacOS, and CentOS, but previous versions 
+Therefore, we compiled a Unix  compiler ourselves and put it onto GitHub, and with the help of a
+maven plugin, it will be  downloaded automatically during compilation.
+This compiler works fine with gcc8 or later, Ubuntu  MacOS, and CentOS, but previous versions
 and other OSs are not guaranteed.
 
-If you can not download the thrift compiler automatically because of a network problem, you can download 
-it by yourself, and then either:
+If you can not download the thrift compiler automatically because of network problem, you can download
+it yourself, and then either:
 rename your thrift file to `{project_root}\thrift\target\tools\thrift_0.12.0_0.13.0_linux.exe`;
 or, add Maven commands:
 `-Dthrift.download-url=http://apache.org/licenses/LICENSE-2.0.txt -Dthrift.exec.absolute.path=<YOUR LOCAL THRIFT BINARY FILE>`.
 
-### Compile IoTDB
+### Compile CED-DB
 
 You can download the source code from:
-
 ```
-git clone https://github.com/apache/iotdb.git
+https://github.com/MDC-LOADS/Cloud-Edge-Device-DataBase.git
 ```
-
-The default dev branch is the master branch, if you want to use a released version x.x.x:
-
+The default dev branch is the Edge branch, If you want to use the Cloud branch:
 ```
-git checkout vx.x.x
+git checkout CED-DB-Cloud
 ```
-
-Or checkout to the branch of a big version, e.g., the branch of 1.0 is rel/1.0.
-
+If you want to use the Edge branch：
 ```
-git checkout rel/x.x
+git checkout CED-DB-Edge
 ```
 
-### Build IoTDB from source
+### Build CED-DB from source
 
-Under the root path of iotdb:
-
+Under the root path of Cloud-Edge-Device-DateBase:
 ```
-> mvn clean package -pl distribution -am -DskipTests
+> mvn clean package -pl distribution -am -DskipTests -Dcheckstyle.skip=true
 ```
-
 After being built, the IoTDB distribution is located at the folder: "distribution/target".
-
 
 ### Only build cli
 
@@ -293,90 +129,140 @@ After being built, the IoTDB cli is located at the folder "cli/target".
 
 ### Build Others
 
-Use `-P with-cpp` for compiling the cpp client. (For more details, read client-cpp's Readme file.)
+Using `-P compile-cpp` for compiling cpp client (For more details, read client-cpp's Readme file.)
 
 **NOTE: Directories "`thrift/target/generated-sources/thrift`", "`thrift-sync/target/generated-sources/thrift`",
-"`thrift-cluster/target/generated-sources/thrift`", "`thrift-influxdb/target/generated-sources/thrift`" 
+"`thrift-cluster/target/generated-sources/thrift`", "`thrift-influxdb/target/generated-sources/thrift`"
 and "`antlr/target/generated-sources/antlr4`" need to be added to sources roots to avoid compilation errors in the IDE.**
 
-**In IDEA, you just need to right click on the root project name and choose "`Maven->Reload Project`" after 
+**In IDEA, you just need to right click on the root project name and choose "`Maven->Reload Project`" after
 you run `mvn package` successfully.**
 
 ### Configurations
 
-Configuration files are under the "conf" folder.
+configuration files are under "conf" folder
 
-  * environment config module (`datanode-env.bat`, `datanode-env.sh`),
-  * system config module (`iotdb-datanode.properties`)
-  * log config module (`logback.xml`).
-
-For more information, please see [Config Manual](https://iotdb.apache.org/UserGuide/Master/Reference/DataNode-Config-Manual.html).
+* environment config module (`datanode-env.bat`, `datanode-env.sh`),
+* system config module (`iotdb-datanode.properties`)
+* log config module (`logback.xml`).
 
 ## Start
 
 You can go through the following steps to test the installation. If there is no error returned after execution, the installation is completed.
 
-### Start IoTDB
+### Start CED-DB
 
-Users can start 1C1D IoTDB by the start-standalone script under the sbin folder.
+You can start CED-DB by running the script in the sbin folder. The specific steps are as follows (Linux):
+
+1. Launch the Edge version:
+
+You need to add the following command below `source "$(dirname "$0")/iotdb-common.sh"` in the `distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh` file:
 
 ```
-# Unix/OS X
-> sbin/start-standalone.sh
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5201"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_edge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_edge/logback-confignode.xml"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_edge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.ConfigNodeEdge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_edge"
+```
+Add the following command below `"$(dirname "$0")/iotdb-common.sh" `in the `distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/sbin/start-datanode.sh` file:
 
-# Windows
-> sbin\start-standalone.bat
+```
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5211"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_edge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_edge/logback-datanode.xml"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_edge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.DataNodeEdge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_edge"
 ```
 
-### Use IoTDB
+Run ConfigNode-Edge:
+```
+sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh
+```
+Run DataNode-Edge:
+
+```
+sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/sbin/start-datanode.sh
+```
+
+2. Launch the Cloud version:
+
+You need to add the following command below `source "$(dirname "$0")/iotdb-common.sh"` in the `distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh` file:
+
+```
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5200"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_cloud"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_cloud/logback-confignode.xml"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_cloud"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.ConfigNodeEdge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_cloud"
+```
+
+Add the following command below `"$(dirname "$0")/iotdb-common.sh" `in the `distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/sbin/start-datanode.sh` file:
+```
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5210"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_cloud"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_cloud/logback-datanode.xml"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_cloud"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.DataNodeEdge"
+IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_cloud"
+```
+Run ConfigNode-Cloud:
+```
+sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh
+```
+Run DataNode-Cloud:
+```
+sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/sbin/start-datanode.sh
+```
+When you need to use it on two devices, you need to modify `localhost` in `iotdb-core/datanode/src/main/java/zyh/service/LoadDetection.java`, `iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/AbstractSeriesAggregationScanOperator.java`, and `iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/SeriesScanOperator.java` to the corresponding IP address.
+
+### Use CED-DB
 
 #### Use Cli
 
-IoTDB offers different ways to interact with server, here we introduce the basic steps of using Cli tool to insert and query data.
+CED-DB provides different ways to interact with the server, here we will introduce the basic steps to insert and query data using the Cli tool.
 
-After installing IoTDB, there is a default user 'root', its default password is also 'root'. Users can use this
-default user to login Cli to use IoTDB. The start-up script of Cli is the start-cli script in the folder sbin. When executing the script, user should assign
-IP, PORT, USER_NAME and PASSWORD. The default parameters are "-h 127.0.0.1 -p 6667 -u root -pw -root".
+After installing CED-DB, there is a default user `root`, and its default password is also `root`. Users can use this
+default user to log in to Cli and use CED-DB. The startup script of Cli is the start-cli script in the sbin folder.
+When executing the script, users should specify the IP, port, USER_NAME and password. The default parameters are `-h 127.0.0.1 -p 6667 -u root -pw root`.
 
 Here is the command for starting the Cli:
 
 ```
-# Unix/OS X
-> sbin/start-cli.sh -h 127.0.0.1 -p 6667 -u root -pw root
-
-# Windows
-> sbin\start-cli.bat -h 127.0.0.1 -p 6667 -u root -pw root
+> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/sbin/start-cli.sh -p 6667
 ```
 
 The command line cli is interactive, so you should see the welcome logo and statements if everything is ready:
 
 ```
- _____       _________  ______   ______
-|_   _|     |  _   _  ||_   _ `.|_   _ \
-  | |   .--.|_/ | | \_|  | | `. \ | |_) |
-  | | / .'`\ \  | |      | |  | | |  __'.
- _| |_| \__. | _| |_    _| |_.' /_| |__) |
-|_____|'.__.' |_____|  |______.'|_______/  version x.x.x
+  ______  ________ ______      ______   ______      
+ .' ___  ||_   __  |_   _ `.   |_   _ `.|_   _ \    
+/ .'   \_|  | |_ \_| | | `. \    | | `. \ | |_) |  
+| |         |  _| _  | |  | |    | |  | | |  __'.  
+\ `.___.'\ _| |__/ |_| |_.' /   _| |_.' /_| |__) | 
+ `.____ .'|________|______.'   |______.'|_______/   
+  version x.x.x
 
-
-IoTDB> login successfully
-IoTDB>
+CED-DB> login successfully
+CED-DB>
 ```
-
-#### Basic commands for IoTDB
+#### Basic commands
 
 Now, let us introduce the way of creating timeseries, inserting data and querying data.
 
-The data in IoTDB is organized as timeseries. Each timeseries includes multiple data–time pairs, and is owned by a database. Before defining a timeseries, we should define a database using CREATE DATABASE first, and here is an example:
+The commands of CED-DB are the same as those of IoTDB. The data in CED-DB is organized as timeseries. Each timeseries includes multiple data-time pairs, and is owned by a database. Before defining a timeseries, we should define a database using CREATE DATABASE first, and here is an example:
 
 ```
-IoTDB> CREATE DATABASE root.ln
+CED-DB> CREATE DATABASE root.ln
 ```
 
 We can also use SHOW DATABASES to check the database being created:
 
 ```
-IoTDB> SHOW DATABASES
+CED-DB> SHOW DATABASES
 +-------------+
 |     Database|
 +-------------+
@@ -388,16 +274,16 @@ Total line number = 1
 After the database is set, we can use CREATE TIMESERIES to create a new timeseries. When creating a timeseries, we should define its data type and the encoding scheme. Here we create two timeseries:
 
 ```
-IoTDB> CREATE TIMESERIES root.ln.wf01.wt01.status WITH DATATYPE=BOOLEAN, ENCODING=PLAIN
-IoTDB> CREATE TIMESERIES root.ln.wf01.wt01.temperature WITH DATATYPE=FLOAT, ENCODING=RLE
+CED-DB> CREATE TIMESERIES root.ln.wf01.wt01.status WITH DATATYPE=BOOLEAN, ENCODING=PLAIN
+CED-DB> CREATE TIMESERIES root.ln.wf01.wt01.temperature WITH DATATYPE=FLOAT, ENCODING=RLE
 ```
 
-In order to query the specific timeseries, we can use SHOW TIMESERIES <Path>. <Path> represent the location of the timeseries. The default value is "null", which queries all the timeseries in the system (the same as using "SHOW TIMESERIES root"). Here are some examples:
+In order to query the specific timeseries, we can use SHOW TIMESERIES <Path>. <Path> represent the location of the timeseries. The default value is "null", which queries all the timeseries in the system(the same as using "SHOW TIMESERIES root"). Here are some examples:
 
 1. Querying all timeseries in the system:
 
 ```
-IoTDB> SHOW TIMESERIES
+CED-DB> SHOW TIMESERIES
 +-----------------------------+-----+-------------+--------+--------+-----------+----+----------+
 |                   Timeseries|Alias|Database|DataType|Encoding|Compression|Tags|Attributes|
 +-----------------------------+-----+-------------+--------+--------+-----------+----+----------+
@@ -407,10 +293,10 @@ IoTDB> SHOW TIMESERIES
 Total line number = 2
 ```
 
-2. Querying a specific timeseries (root.ln.wf01.wt01.status):
+2. Querying a specific timeseries(root.ln.wf01.wt01.status):
 
 ```
-IoTDB> SHOW TIMESERIES root.ln.wf01.wt01.status
+CED-DB> SHOW TIMESERIES root.ln.wf01.wt01.status
 +------------------------+-----+-------------+--------+--------+-----------+----+----------+
 |              timeseries|alias|database|dataType|encoding|compression|tags|attributes|
 +------------------------+-----+-------------+--------+--------+-----------+----+----------+
@@ -419,17 +305,17 @@ IoTDB> SHOW TIMESERIES root.ln.wf01.wt01.status
 Total line number = 1
 ```
 
-Inserting timeseries data is a basic operation of IoTDB, you can use the ‘INSERT’ command to finish this. Before insertion, you should assign the timestamp and the suffix path name:
+Insert timeseries data is a basic operation of CED-DB, you can use ‘INSERT’ command to finish this. Before insertion, you should assign the timestamp and the suffix path name:
 
 ```
-IoTDB> INSERT INTO root.ln.wf01.wt01(timestamp,status) values(100,true);
-IoTDB> INSERT INTO root.ln.wf01.wt01(timestamp,status,temperature) values(200,false,20.71)
+CED-DB> INSERT INTO root.ln.wf01.wt01(timestamp,status) values(100,true);
+CED-DB> INSERT INTO root.ln.wf01.wt01(timestamp,status,temperature) values(200,false,20.71)
 ```
 
-The data that you have just inserted will be displayed as follows:
+The data that you have just inserted will display as follows:
 
 ```
-IoTDB> SELECT status FROM root.ln.wf01.wt01
+CED-DB> SELECT status FROM root.ln.wf01.wt01
 +------------------------+------------------------+
 |                    Time|root.ln.wf01.wt01.status|
 +------------------------+------------------------+
@@ -442,7 +328,7 @@ Total line number = 2
 You can also query several timeseries data using one SQL statement:
 
 ```
-IoTDB> SELECT * FROM root.ln.wf01.wt01
+CED-DB> SELECT * FROM root.ln.wf01.wt01
 +------------------------+-----------------------------+------------------------+
 |                    Time|root.ln.wf01.wt01.temperature|root.ln.wf01.wt01.status|
 +------------------------+-----------------------------+------------------------+
@@ -455,16 +341,16 @@ Total line number = 2
 To change the time zone in Cli, you can use the following SQL:
 
 ```
-IoTDB> SET time_zone=+08:00
+CED-DB> SET time_zone=+08:00
 Time zone has set to +08:00
-IoTDB> SHOW time_zone
+CED-DB> SHOW time_zone
 Current time zone: Asia/Shanghai
 ```
 
 Add then the query result will show using the new time zone.
 
 ```
-IoTDB> SELECT * FROM root.ln.wf01.wt01
+CED-DB> SELECT * FROM root.ln.wf01.wt01
 +-----------------------------+-----------------------------+------------------------+
 |                         Time|root.ln.wf01.wt01.temperature|root.ln.wf01.wt01.status|
 +-----------------------------+-----------------------------+------------------------+
@@ -477,44 +363,31 @@ Total line number = 2
 The commands to exit the Cli are:
 
 ```
-IoTDB> quit
+CED-DB> quit
 or
-IoTDB> exit
+CED-DB> exit
 ```
 
-For more information about the commands supported by IoTDB SQL, please see [User Guide](https://iotdb.apache.org/UserGuide/Master/QuickStart/QuickStart.html).
+Since the commands of CED-DB and IoTDB are the same, for more information about the commands supported by IoTDB SQL, see the [IoTDB User Guide](https://iotdb.apache.org/zh/UserGuide/Master/QuickStart/QuickStart.html).
 
-### Stop IoTDB
+### Stop CED-DB
 
 The server can be stopped with "ctrl-C" or the following script:
-
 ```
-# Unix/OS X
-> sbin/stop-standalone.sh
-
-# Windows
-> sbin\stop-standalone.bat
+> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/stop-standalone.sh
 ```
-
-# The use of CSV Import and Export Tool
-
-see [The use of CSV Import and Export Tool](https://iotdb.apache.org/UserGuide/latest/Tools-System/Import-Export-Tool.html)
-
-# Frequent Questions for Compiling
-see [Frequent Questions when Compiling the Source Code](https://iotdb.apache.org/Development/ContributeGuide.html#_Frequent-Questions-when-Compiling-the-Source-Code)
 
 # Contact Us
-
 ### QQ Group
 
-* Apache IoTDB User Group: 659990460
+* MDC CED-DB User Group：973755143
 
 ### Wechat Group
 
-* Add friend: `tietouqiao` or `liutaohua001`, and then we'll invite you to the group.
+* Add friend: `zcy09120016`, and then we'll invite you to the group.
 
-### Slack
+# Statement
 
-* [Slack channel](https://join.slack.com/t/apacheiotdb/shared_invite/zt-qvso1nj8-7715TpySZtZqmyG5qXQwpg)
-
-see [Join the community](https://github.com/apache/iotdb/issues/1995) for more!
+* This project was primarily carried out by the Massive Data Computing Lab at Harbin Institute of Technology, with the IoTDB team participating as a collaborator in part of the work.
+* This project is a research outcome of the Cloud-Edge-End Collaborative Database Management System project.
+* The related outcomes are intended solely for academic research purposes and may not be reproduced or used for commercial purposes without permission.

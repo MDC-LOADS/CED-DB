@@ -20,10 +20,16 @@
 package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.AbstractConsumeAllOperator;
 
+import org.apache.iotdb.db.queryengine.execution.operator.source.AbstractDataSourceOperator;
+import org.apache.iotdb.db.queryengine.execution.operator.source.ExchangeOperator;
+import org.apache.iotdb.db.queryengine.execution.operator.source.SeriesScanUtil;
 import org.apache.tsfile.block.column.Column;
 import org.apache.tsfile.block.column.ColumnBuilder;
 import org.apache.tsfile.enums.TSDataType;
@@ -33,6 +39,8 @@ import org.apache.tsfile.read.common.block.column.TimeColumn;
 import org.apache.tsfile.read.common.block.column.TimeColumnBuilder;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -56,6 +64,8 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
 
   private boolean finished;
 
+  private final List<String> childScanPaths;
+
   public HorizontallyConcatOperator(
       OperatorContext operatorContext, List<Operator> children, List<TSDataType> dataTypes) {
     super(operatorContext, children);
@@ -63,6 +73,13 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
         !children.isEmpty(), "child size of VerticallyConcatOperator should be larger than 0");
     this.inputIndex = new int[this.inputOperatorsCount];
     this.tsBlockBuilder = new TsBlockBuilder(dataTypes);
+    this.childScanPaths = new ArrayList<>();
+    for (int i = 0; i < inputOperatorsCount; i++) {
+      String scanPath = extractSeriesPathFromChild(children.get(i), i);
+      if(scanPath!=null){
+        this.childScanPaths.add(scanPath);
+      }
+    }
   }
 
   @Override
@@ -105,11 +122,32 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
       }
       inputIndex[i] += maxRowCanBuild;
     }
-    return tsBlockBuilder.build();
+    TsBlock res = tsBlockBuilder.build();
+    long endTime = res.getEndTime();
+    updateScanStates(endTime);
+    return res;
   }
 
   @Override
   public boolean hasNext() throws Exception {
+    QueryStateManager queryStateManager = getSession();
+    if(queryStateManager != null){
+      if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED
+              && !queryStateManager.getOperatorClearManager().isCleared("HCJoin")){
+        //清空全部中间状态
+        Arrays.fill(inputIndex, 0);
+        inputTsBlocks = new TsBlock[inputOperatorsCount];
+        retainedTsBlock = null;
+        startOffset=0;
+        for (int i = 0; i < inputOperatorsCount; i++) {
+          canCallNext[i] = false;
+        }
+        currentChildIndex = 0;
+        hasEmptyChildInput = false;
+        tsBlockBuilder.reset();
+        queryStateManager.getOperatorClearManager().clearOperator(getColQueryId(),"HCJoin");
+      }
+    }
     if (finished) {
       return false;
     }
@@ -190,5 +228,93 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
         + RamUsageEstimator.sizeOf(inputIndex)
         + RamUsageEstimator.sizeOf(canCallNext)
         + tsBlockBuilder.getRetainedSizeInBytes();
+  }
+
+  private void updateScanStates(long endTime) {
+
+    if (getSession() == null) {
+      return;
+    }
+    QueryStateManager stateManager = getSession();
+    for(int i = 0; i < inputOperatorsCount; i++){
+      if (i >= childScanPaths.size()) {
+        continue;
+      }
+
+      String scanPath = childScanPaths.get(i);
+      if (scanPath == null || scanPath.isEmpty()) {
+        continue;
+      }
+
+      // Get or create scan states for this path
+      QueryStateManager.ScanStates scanStates = stateManager.getScanStates(scanPath);
+      if (scanStates == null) {
+        scanStates = new QueryStateManager.ScanStates();
+        stateManager.setScanStates(scanPath, scanStates);
+      }
+      scanStates.setOffset(endTime+stateManager.getTimeRangeSize());
+      scanStates.setCouldEqual(true);
+    }
+    stateManager.setHorizontal(true);
+    System.out.println(stateManager.getStateSummary());
+  }
+
+  private String extractSeriesPathFromChild(Operator childOperator, int childIndex) {
+    // Check if child operator is an ExchangeOperator that contains SourceId -> SeriesScanUtil
+    if (childOperator instanceof ExchangeOperator) {
+      ExchangeOperator sourceOperator = (ExchangeOperator) childOperator;
+      // Access the sourceOperator field using reflection to get sourceId
+      try {
+        java.lang.reflect.Field sourceIdField = ExchangeOperator.class.getDeclaredField("sourceId");
+        sourceIdField.setAccessible(true);
+        Object sourceId = sourceIdField.get(sourceOperator);
+        if (sourceId != null) {
+          String planNodeId = sourceId.toString();
+          QueryStateManager stateManager = getSession();
+          if(stateManager.getSeriesPath(planNodeId) != null) {
+            stateManager.updateScanInnerJoin(planNodeId, true);
+            return stateManager.getSeriesPath(planNodeId);
+          }
+        }
+      } catch (Exception e) {
+        // Log the exception and handle accordingly
+      }
+    } else if (childOperator instanceof AbstractDataSourceOperator) {
+      AbstractDataSourceOperator dataSourceOperator = (AbstractDataSourceOperator) childOperator;
+      // Access the seriesScanUtil field using reflection to get seriesPath
+      try {
+        java.lang.reflect.Field seriesScanUtilField = AbstractDataSourceOperator.class.getDeclaredField("seriesScanUtil");
+        seriesScanUtilField.setAccessible(true);
+        SeriesScanUtil seriesScanUtil = (SeriesScanUtil) seriesScanUtilField.get(dataSourceOperator);
+        if (seriesScanUtil != null) {
+          // Access the seriesPath field from SeriesScanUtil
+          java.lang.reflect.Field seriesPathField = SeriesScanUtil.class.getDeclaredField("seriesPath");
+          seriesPathField.setAccessible(true);
+          Object seriesPathObj = seriesPathField.get(seriesScanUtil);
+          if (seriesPathObj != null) {
+            return seriesPathObj.toString();
+          }
+        }
+      } catch (Exception e) {
+        // Log the exception and fall back to default naming
+        // Consider adding proper logging here if needed
+      }
+    }
+    // Fall back to default path naming if SeriesScanUtil is not found or extraction fails
+    return "child_" + childIndex + "_" + operatorContext.getPlanNodeId();
+  }
+
+  public QueryStateManager getQueryStateManager() {
+    return getSession();
+  }
+
+  private String getColQueryId() {
+    String edgeQueryId = getOperatorContext().getInstanceContext().getId().getQueryId().getId();
+    int dataNodeId = org.apache.iotdb.db.conf.IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
+    return edgeQueryId + "-" + dataNodeId;
+  }
+
+  private QueryStateManager getSession() {
+    return ColQuerySessions.getByEdgeQueryId(getColQueryId());
   }
 }

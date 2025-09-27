@@ -60,7 +60,7 @@ public class ServiceImpl implements C2EColService.Iface{
         if (queryStateManager.isSingleScan()) {
             long offset = scanStates.get(0).getScanTimestamp();
             String seriesPath = queryStateManager.getSeriesPath(planNodeIds.get(0));
-            callAnsMessageWithSingleScan(colQueryId, edgeFragmentId, planNodeIds.get(0), offset, seriesPath, false);
+            callAnsMessageWithSingleScan(colQueryId, edgeFragmentId, planNodeIds.get(0), offset, seriesPath, scanStates.get(0).isCouldEqual());
             queryStateManager.getStateMachine().transitionToColQuery();
         } else {
             Map<String, ScanInfo> scanInfoMap = new HashMap<>();
@@ -246,6 +246,9 @@ public class ServiceImpl implements C2EColService.Iface{
         }
         if (hasInnerJoin){
             planNodeIds.add("InnerJoin");
+        }
+        if(queryStateManager.isHorizontal()){
+            planNodeIds.add("HCJoin");
         }
         queryStateManager.setOperatorClearManager(planNodeIds);
         queryStateManager.getStateMachine().transitionToPreClosed();

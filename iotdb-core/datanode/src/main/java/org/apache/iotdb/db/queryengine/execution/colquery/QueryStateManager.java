@@ -33,7 +33,11 @@ import org.apache.iotdb.metrics.utils.MetricLevel;
 import org.apache.iotdb.metrics.utils.MetricType;
 import org.apache.tsfile.read.common.block.TsBlock;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,12 +55,18 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class QueryStateManager {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(QueryStateManager.class);
+
   private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
   private final MetricService metricService = MetricService.getInstance();
   private final AtomicBoolean metricsRegistered = new AtomicBoolean(false);
   private volatile ColQueryState lastReportedState;
   private volatile String lastReportedStateLabel;
+
+  private final EnumMap<ColQueryState, Long> stateDurations = new EnumMap<>(ColQueryState.class);
+  private volatile long lastStateEnterTimestamp = -1L;
+  private volatile ColQueryState lastStateForDuration;
 
   private volatile ColQueryStateMachine stateMachine;//协同查询状态机
 
@@ -102,6 +112,9 @@ public class QueryStateManager {
 
   private final ConcurrentHashMap<String,ISourceHandle> scanSourceHandles = new ConcurrentHashMap<>();//PlanNodeId->ISourceHandle
 
+  private volatile boolean isHorizontal = false;
+
+  private volatile long timeRangeSize=0;
 
 
 
@@ -151,6 +164,14 @@ public class QueryStateManager {
 
   public void setSql(String sql) {
     this.sql = sql;
+  }
+
+  public boolean isHorizontal() {
+    return isHorizontal;
+  }
+
+  public void setHorizontal(boolean isHorizontal) {
+    this.isHorizontal = isHorizontal;
   }
 
 
@@ -542,6 +563,14 @@ public class QueryStateManager {
     return isSingleScan;
   }
 
+  public void setTimeRangeSize(long timeRangeSize) {
+    this.timeRangeSize = timeRangeSize;
+  }
+
+  public long getTimeRangeSize() {
+    return timeRangeSize;
+  }
+
   // Utility methods
   public void resetStates() {
     lock.writeLock().lock();
@@ -732,6 +761,52 @@ public class QueryStateManager {
     return queryId != null && !queryId.isEmpty() && !"null".equalsIgnoreCase(queryId);
   }
 
+  private void recordStateDurations(String queryId, ColQueryState newState) {
+    long now = System.currentTimeMillis();
+
+    synchronized (this) {
+      ColQueryState previousState = lastStateForDuration;
+
+      if (previousState == null) {
+        lastStateForDuration = newState;
+        lastStateEnterTimestamp = now;
+        return;
+      }
+
+      if (previousState == newState) {
+        return;
+      }
+
+      long elapsed = lastStateEnterTimestamp < 0 ? 0 : Math.max(0, now - lastStateEnterTimestamp);
+      stateDurations.merge(previousState, elapsed, Long::sum);
+
+      lastStateForDuration = newState;
+      lastStateEnterTimestamp = now;
+
+      if (newState == ColQueryState.CLOSED && previousState == ColQueryState.PRE_CLOSED) {
+        logStateDurations(queryId);
+        stateDurations.clear();
+      }
+    }
+  }
+
+  private void logStateDurations(String queryId) {
+    long startMs = stateDurations.getOrDefault(ColQueryState.START, 0L);
+    long preColQueryMs = stateDurations.getOrDefault(ColQueryState.PRE_COL_QUERY, 0L);
+    long colQueryMs = stateDurations.getOrDefault(ColQueryState.COL_QUERY, 0L);
+    long preClosedMs = stateDurations.getOrDefault(ColQueryState.PRE_CLOSED, 0L);
+
+    LOGGER.info(
+        "colQueryId={} state durations(ms): START={}, PRE_COL_QUERY={}, COL_QUERY={}, PRE_CLOSED={}",
+        queryId,
+        startMs,
+        preColQueryMs,
+        colQueryMs,
+        preClosedMs);
+    String infos="colQueryId="+queryId+" state durations(ms): START="+startMs+", PRE_COL_QUERY="+preColQueryMs+", COL_QUERY="+colQueryMs+", PRE_CLOSED="+preClosedMs;
+    System.out.println("\n协同时间："+infos);
+  }
+
   private void updateStateMetrics(ColQueryState newState) {
     if (newState == null) {
       return;
@@ -740,6 +815,9 @@ public class QueryStateManager {
     if (!hasValidQueryId(queryId)) {
       return;
     }
+
+    recordStateDurations(queryId, newState);
+
     metricService.gauge(
         newState.ordinal(),
         Metric.COL_QUERY_STATE_VALUE.toString(),

@@ -52,6 +52,7 @@ import org.apache.iotdb.db.queryengine.plan.planner.plan.FragmentInstance;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.LogicalQueryPlan;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNode;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNodeUtil;
+import org.apache.iotdb.db.queryengine.plan.planner.plan.node.source.SeriesAggregationScanNode;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.source.SeriesScanNode;
 import org.apache.iotdb.db.queryengine.plan.scheduler.IScheduler;
 import org.apache.iotdb.db.utils.SetThreadName;
@@ -188,7 +189,7 @@ public class QueryExecution implements IQueryExecution {
             // 使用 IoTDB 原始 QueryId，协同通道 id 单独保存，避免非法 id 格式
             stateManager.setQueryId(colQueryId);
             stateManager.setSql(context.getSql());
-            if (logicalPlan.getRootNode() instanceof SeriesScanNode) {
+            if (logicalPlan.getRootNode() instanceof SeriesScanNode || logicalPlan.getRootNode() instanceof SeriesAggregationScanNode) {
                 stateManager.setSingleScan(true);
                 System.out.println("\n--------\nsingleScan");
             }

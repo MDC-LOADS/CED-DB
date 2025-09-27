@@ -167,6 +167,7 @@ public class IdentitySinkOperator implements Operator {
                         }
                         if(!colSourceHandle.isFinished()){
                             tsBlock_rev = colSourceHandle.receive();
+                            System.out.println("接收数据");
 //                            System.out.println("接收到的TsBlock："+showTsBlock(tsBlock_rev));
                         }
                     }

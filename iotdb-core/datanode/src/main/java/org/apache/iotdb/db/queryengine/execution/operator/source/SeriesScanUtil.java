@@ -1561,7 +1561,11 @@ public class SeriesScanUtil implements Accountable {
         + MemoryEstimationHelper.getEstimatedSizeOfPartialPath(seriesPath);
   }
 
-    public void setSeriesScanOptions(SeriesScanOptions seriesScanOptions) {
-        this.scanOptions = seriesScanOptions;
-    }
+  public SeriesScanOptions getSeriesScanOptions() {
+    return scanOptions;
+  }
+
+  public void setSeriesScanOptions(SeriesScanOptions seriesScanOptions) {
+    this.scanOptions = seriesScanOptions;
+  }
 }

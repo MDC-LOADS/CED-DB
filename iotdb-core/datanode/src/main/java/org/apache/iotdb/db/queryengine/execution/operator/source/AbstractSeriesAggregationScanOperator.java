@@ -21,9 +21,12 @@ package org.apache.iotdb.db.queryengine.execution.operator.source;
 
 import org.apache.iotdb.db.queryengine.execution.aggregation.Aggregator;
 import org.apache.iotdb.db.queryengine.execution.aggregation.timerangeiterator.ITimeRangeIterator;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanNodeId;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.parameter.GroupByTimeParameter;
+import org.apache.iotdb.db.queryengine.plan.planner.plan.parameter.SeriesScanOptions;
 
 import org.apache.tsfile.common.conf.TSFileDescriptor;
 import org.apache.tsfile.enums.TSDataType;
@@ -55,6 +58,8 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
   // Current interval of aggregation window [curStartTime, curEndTime)
   protected TimeRange curTimeRange;
 
+  private final long timeRangeSize;
+
   // We still think aggregator in SeriesAggregateScanOperator is a inputRaw step.
   // But in facing of statistics, it will invoke another method processStatistics()
   protected final List<Aggregator> aggregators;
@@ -70,6 +75,10 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
 
   /** Some special data types(like BLOB) cannot use statistics. */
   private final boolean canUseStatistics;
+
+  private boolean enforceFilterLowerBound = false;
+  private long filterLowerBound;
+  private boolean currentWindowHasData;
 
   @SuppressWarnings("squid:S107")
   protected AbstractSeriesAggregationScanOperator(
@@ -92,6 +101,7 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
     this.subSensorSize = subSensorSize;
     this.aggregators = aggregators;
     this.timeRangeIterator = timeRangeIterator;
+    this.timeRangeSize = timeRangeIterator.getFirstTimeRange().getMax()-timeRangeIterator.getFirstTimeRange().getMin();
 
     this.cachedRawDataSize =
         (1L + subSensorSize) * TSFileDescriptor.getInstance().getConfig().getPageSizeInByte();
@@ -120,6 +130,26 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
     return curTimeRange != null || timeRangeIterator.hasNextTimeRange();
   }
 
+  public SeriesScanOptions getSeriesScanOptions() {
+    return seriesScanUtil.getSeriesScanOptions();
+  }
+
+  public void setSeriesScanOptions(SeriesScanOptions seriesScanOptions) {
+    seriesScanUtil.setSeriesScanOptions(seriesScanOptions);
+  }
+
+  public void setFilterLowerBound(long lowerBound) {
+    this.filterLowerBound = lowerBound;
+    this.enforceFilterLowerBound = true;
+  }
+
+  private boolean shouldSkipCurrentWindowForFilter() {
+    if (!enforceFilterLowerBound || curTimeRange == null) {
+      return false;
+    }
+    return curTimeRange.getMax() <= filterLowerBound;
+  }
+
   @Override
   public TsBlock next() throws Exception {
     // start stopwatch, reset leftRuntimeOfOneNextCall
@@ -133,6 +163,7 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
       if (curTimeRange == null) {
         // move to the next time window
         curTimeRange = timeRangeIterator.nextTimeRange();
+        currentWindowHasData = false;
         // clear previous aggregation result
         for (Aggregator aggregator : aggregators) {
           aggregator.reset();
@@ -149,9 +180,27 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
     if (resultTsBlockBuilder.getPositionCount() > 0) {
       TsBlock resultTsBlock = resultTsBlockBuilder.build();
       resultTsBlockBuilder.reset();
+      setScanTimestamp(resultTsBlock);
       return resultTsBlock;
     } else {
       return null;
+    }
+  }
+
+  private void setScanTimestamp(TsBlock res) {
+    QueryStateManager queryStateManager = getSession();
+    if(queryStateManager != null){
+      System.out.println("待设置偏移量 Ascan，id为"+sourceId.getId());
+      if(queryStateManager.isHasSeriesPath(sourceId.getId())
+              && !queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
+        long currentEndTime = res.getEndTime();
+        queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime+timeRangeSize);
+        queryStateManager.updateScanCouldEqualByPlanNodeId(sourceId.getId(),true);
+        System.out.println("设置了偏移量 Ascan，id为"+sourceId.getId());
+      }
+      if(queryStateManager.getTimeRangeSize()==0){
+        queryStateManager.setTimeRangeSize(timeRangeSize);
+      }
     }
   }
 
@@ -206,6 +255,10 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
   }
 
   protected void updateResultTsBlock() {
+    if (enforceFilterLowerBound
+        && (!currentWindowHasData || shouldSkipCurrentWindowForFilter())) {
+      return;
+    }
     if (!outputEndTime) {
       appendAggregationResult(
           resultTsBlockBuilder, aggregators, timeRangeIterator.currentOutputTime());
@@ -223,18 +276,31 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
   }
 
   private boolean calcFromRawData(TsBlock tsBlock) {
+    if (tsBlock == null) {
+      inputTsBlock = null;
+      return false;
+    }
     Pair<Boolean, TsBlock> calcResult =
         calculateAggregationFromRawData(tsBlock, aggregators, curTimeRange, ascending);
-    inputTsBlock = calcResult.getRight();
+    TsBlock remainingTsBlock = calcResult.getRight();
+    if (remainingTsBlock != tsBlock) {
+      currentWindowHasData = true;
+    }
+    inputTsBlock = remainingTsBlock;
     return calcResult.getLeft();
   }
 
   protected void calcFromStatistics(Statistics timeStatistics, Statistics[] valueStatistics) {
+    boolean processed = false;
     for (Aggregator aggregator : aggregators) {
       if (aggregator.hasFinalResult()) {
         continue;
       }
       aggregator.processStatistics(timeStatistics, valueStatistics);
+      processed = true;
+    }
+    if (processed) {
+      currentWindowHasData = true;
     }
   }
 
@@ -381,5 +447,9 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
       dataTypes.addAll(Arrays.asList(aggregator.getOutputType()));
     }
     return dataTypes;
+  }
+
+  private QueryStateManager getSession() {
+    return ColQuerySessions.getByCloudQueryId(getOperatorContext().getInstanceContext().getId().getQueryId().getId());
   }
 }

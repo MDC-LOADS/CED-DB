@@ -20,6 +20,9 @@
 package org.apache.iotdb.db.queryengine.execution.operator.process.join;
 
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.operator.Operator;
 import org.apache.iotdb.db.queryengine.execution.operator.OperatorContext;
 import org.apache.iotdb.db.queryengine.execution.operator.process.AbstractConsumeAllOperator;
@@ -33,6 +36,7 @@ import org.apache.tsfile.read.common.block.column.TimeColumn;
 import org.apache.tsfile.read.common.block.column.TimeColumnBuilder;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -56,6 +60,9 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
 
   private boolean finished;
 
+  private final List<String> childScanPaths;
+
+
   public HorizontallyConcatOperator(
       OperatorContext operatorContext, List<Operator> children, List<TSDataType> dataTypes) {
     super(operatorContext, children);
@@ -63,6 +70,13 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
         !children.isEmpty(), "child size of VerticallyConcatOperator should be larger than 0");
     this.inputIndex = new int[this.inputOperatorsCount];
     this.tsBlockBuilder = new TsBlockBuilder(dataTypes);
+    this.childScanPaths = new ArrayList<>();
+    QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+            operatorContext.getInstanceContext().getId().getQueryId().getId());
+    if(queryStateManager != null && queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
+      extractSeriesPathFromChild();
+      queryStateManager.setHorizontal(true);
+    }
   }
 
   @Override
@@ -105,7 +119,10 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
       }
       inputIndex[i] += maxRowCanBuild;
     }
-    return tsBlockBuilder.build();
+    TsBlock res = tsBlockBuilder.build();
+    long endTime = res.getEndTime();
+    updateScanStates(endTime);
+    return res;
   }
 
   @Override
@@ -191,4 +208,50 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
         + RamUsageEstimator.sizeOf(canCallNext)
         + tsBlockBuilder.getRetainedSizeInBytes();
   }
+
+  private void extractSeriesPathFromChild() {
+    QueryStateManager queryStateManager = ColQuerySessions.getByCloudQueryId(
+            getOperatorContext().getInstanceContext().getId().getQueryId().getId());
+    if (queryStateManager == null) {
+      return;
+    }
+    if(!queryStateManager.getAllScanPathList().isEmpty()){
+      queryStateManager.getAllScanStates().forEach((key, value) -> {
+          childScanPaths.add(key);
+      });
+      return ;
+    }
+    for(int i = 0; i < inputOperatorsCount; i++){
+      childScanPaths.add("child_" + i + "_" + operatorContext.getPlanNodeId());
+    }
+  }
+
+  private void updateScanStates(long endTime) {
+    QueryStateManager stateManager = ColQuerySessions.getByCloudQueryId(
+            getOperatorContext().getInstanceContext().getId().getQueryId().getId());
+    if (stateManager == null) {
+      System.out.println("出现了bug");
+      return;
+    }
+
+    for (int i = 0; i < inputOperatorsCount; i++){
+      if (i >= childScanPaths.size()) {
+        continue;
+      }
+
+      String scanPath = childScanPaths.get(i);
+      if (scanPath == null || scanPath.isEmpty()) {
+        continue;
+      }
+      QueryStateManager.ScanStates scanStates = stateManager.getScanStates(scanPath);
+      if (scanStates == null) {
+        scanStates = new QueryStateManager.ScanStates();
+        stateManager.setScanStates(scanPath, scanStates);
+      }
+      scanStates.setOffset(endTime+stateManager.getTimeRangeSize());
+      scanStates.setCouldEqual(true);
+    }
+      stateManager.setHorizontal(true);
+      System.out.println(stateManager.getStateSummary());
+    }
 }

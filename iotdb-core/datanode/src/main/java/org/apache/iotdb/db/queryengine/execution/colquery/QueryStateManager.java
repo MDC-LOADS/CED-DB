@@ -114,6 +114,10 @@ public class QueryStateManager {
   // record SQL for heuristics / debugging
   private String sql;
 
+  private volatile boolean isHorizontal = false;
+
+  private volatile long timeRangeSize=0;
+
 
   /** 构造函数 */
   public QueryStateManager(ColQueryStateMachine stateMachine) {
@@ -560,6 +564,22 @@ public class QueryStateManager {
 
   public boolean isSingleScan() {
     return isSingleScan;
+  }
+
+  public void setTimeRangeSize(long timeRangeSize) {
+    this.timeRangeSize = timeRangeSize;
+  }
+
+  public long getTimeRangeSize() {
+    return timeRangeSize;
+  }
+
+  public boolean isHorizontal() {
+    return isHorizontal;
+  }
+
+  public void setHorizontal(boolean isHorizontal) {
+    this.isHorizontal = isHorizontal;
   }
 
   // Utility methods

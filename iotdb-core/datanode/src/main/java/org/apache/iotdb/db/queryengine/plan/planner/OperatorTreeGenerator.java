@@ -719,6 +719,34 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
     ((DataDriverContext) context.getDriverContext()).addSourceOperator(aggregateScanOperator);
     ((DataDriverContext) context.getDriverContext()).addPath(seriesPath);
     context.getDriverContext().setInputDriver(true);
+
+    QueryStateManager session =
+        ColQuerySessions.getByCloudQueryId(
+            context.getFragmentInstanceId().getQueryId().getId());
+    if (session != null
+        && session.getStateMachine().getState() == ColQueryState.PRE_COL_QUERY) {
+      session.setScanPathExchangeByPlanNodeId(
+          operatorContext.getPlanNodeId().getId(),
+          operatorContext.getDriverContext().getOperatorContexts().size() == 1);
+      QueryStateManager.ScanStates scanStates =
+          session.getScanStates(seriesPath.getFullPath());
+      Filter newOffsetFilter =
+          scanStates.isCouldEqual()
+              ? TimeFilterApi.gtEq(scanStates.getOffset())
+              : TimeFilterApi.gt(scanStates.getOffset());
+      SeriesScanOptions oldSeriesScanOptions = aggregateScanOperator.getSeriesScanOptions();
+      Filter existingFilter = oldSeriesScanOptions.getGlobalTimeFilter();
+      Filter combinedFilter =
+          existingFilter != null
+              ? FilterFactory.and(existingFilter, newOffsetFilter)
+              : newOffsetFilter;
+      SeriesScanOptions.Builder builder = new SeriesScanOptions.Builder();
+      builder.withGlobalTimeFilter(combinedFilter)
+          .withPushDownFilter(oldSeriesScanOptions.getPushDownFilter());
+      builder.withAllSensors(oldSeriesScanOptions.getAllSensors());
+      aggregateScanOperator.setSeriesScanOptions(builder.build());
+      aggregateScanOperator.setFilterLowerBound(scanStates.getOffset());
+    }
     return aggregateScanOperator;
   }
 
@@ -864,6 +892,34 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
         .addSourceOperator(seriesAggregationScanOperator);
     ((DataDriverContext) context.getDriverContext()).addPath(alignedPath);
     context.getDriverContext().setInputDriver(true);
+
+    QueryStateManager session =
+        ColQuerySessions.getByCloudQueryId(
+            context.getFragmentInstanceId().getQueryId().getId());
+    if (session != null
+        && session.getStateMachine().getState() == ColQueryState.PRE_COL_QUERY) {
+      session.setScanPathExchangeByPlanNodeId(
+          operatorContext.getPlanNodeId().getId(),
+          operatorContext.getDriverContext().getOperatorContexts().size() == 1);
+      QueryStateManager.ScanStates scanStates =
+          session.getScanStates(alignedPath.getFullPath());
+      Filter newOffsetFilter =
+          scanStates.isCouldEqual()
+              ? TimeFilterApi.gtEq(scanStates.getOffset())
+              : TimeFilterApi.gt(scanStates.getOffset());
+      SeriesScanOptions oldSeriesScanOptions = seriesAggregationScanOperator.getSeriesScanOptions();
+      Filter existingFilter = oldSeriesScanOptions.getGlobalTimeFilter();
+      Filter combinedFilter =
+          existingFilter != null
+              ? FilterFactory.and(existingFilter, newOffsetFilter)
+              : newOffsetFilter;
+      SeriesScanOptions.Builder builder = new SeriesScanOptions.Builder();
+      builder.withGlobalTimeFilter(combinedFilter)
+          .withPushDownFilter(oldSeriesScanOptions.getPushDownFilter());
+      builder.withAllSensors(oldSeriesScanOptions.getAllSensors());
+      seriesAggregationScanOperator.setSeriesScanOptions(builder.build());
+      seriesAggregationScanOperator.setFilterLowerBound(scanStates.getOffset());
+    }
     return seriesAggregationScanOperator;
   }
 

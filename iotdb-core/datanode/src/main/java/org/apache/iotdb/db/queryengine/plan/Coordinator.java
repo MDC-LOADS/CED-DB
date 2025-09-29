@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 import static org.apache.iotdb.commons.utils.StatusUtils.needRetry;
@@ -253,14 +254,25 @@ public class Coordinator {
       try (SetThreadName threadName = new SetThreadName(queryExecution.getQueryId())) {
         LOGGER.debug("[CleanUpQuery]]");
         queryExecution.stopAndCleanup(t);
+        boolean isQueryExecution = queryExecution.isQuery();
+        long costTimeInNs = queryExecution.getTotalExecutionTime();
+        long elapsedMillis =
+                costTimeInNs > 0
+                        ? TimeUnit.NANOSECONDS.toMillis(costTimeInNs)
+                        : Math.max(0, System.currentTimeMillis() - queryExecution.getStartExecutionTime());
+        if (isQueryExecution) {
+          LOGGER.info(
+                  "[QueryFinished] queryId={}, cost={} ms",
+                  queryExecution.getQueryId(),
+                  elapsedMillis);
+        }
         queryExecutionMap.remove(queryId);
-        if (queryExecution.isQuery()) {
-          long costTime = queryExecution.getTotalExecutionTime();
-          if (costTime / 1_000_000 >= CONFIG.getSlowQueryThreshold()) {
+        if (isQueryExecution) {
+          if (elapsedMillis >= CONFIG.getSlowQueryThreshold()) {
             SLOW_SQL_LOGGER.info(
-                "Cost: {} ms, {}",
-                costTime / 1_000_000,
-                getContentOfRequest(nativeApiRequest, queryExecution));
+                    "Cost: {} ms, {}",
+                    elapsedMillis,
+                    getContentOfRequest(nativeApiRequest, queryExecution));
           }
         }
       }

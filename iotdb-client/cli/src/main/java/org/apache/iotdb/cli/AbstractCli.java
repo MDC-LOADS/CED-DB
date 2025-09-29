@@ -105,7 +105,7 @@ public abstract class AbstractCli {
   static final int MAX_HELP_CONSOLE_WIDTH = 88;
   static final String TIMESTAMP_STR = "Time";
   private static final String IMPORT_CMD = "import";
-  static int maxPrintRowCount = 1000;
+  static int maxPrintRowCount = 10000;
   private static int fetchSize = 1000;
   static int queryTimeout = 0;
   static String timestampPrecision = "ms";

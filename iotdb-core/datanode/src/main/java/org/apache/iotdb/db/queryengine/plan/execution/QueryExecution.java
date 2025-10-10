@@ -380,16 +380,16 @@ public class QueryExecution implements IQueryExecution {
         // 设置根节点
         session2.setRootIdentitySinkId(
             distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
-        System.out.println("\nFragmentInstances:" + printFragmentInstances(distributedPlan.getInstances()));
-        System.out.println(
-            "\nRoot Identity's PlanNodeId is:"
-                + distributedPlan
-                    .getInstances()
-                    .get(0)
-                    .getFragment()
-                    .getPlanNodeTree()
-                    .getPlanNodeId()
-                    .getId());
+//        System.out.println("\nFragmentInstances:" + printFragmentInstances(distributedPlan.getInstances()));
+//        System.out.println(
+//            "\nRoot Identity's PlanNodeId is:"
+//                + distributedPlan
+//                    .getInstances()
+//                    .get(0)
+//                    .getFragment()
+//                    .getPlanNodeTree()
+//                    .getPlanNodeId()
+//                    .getId());
       }
     }
     // check timeout after building distribution plan because it could be time-consuming in some

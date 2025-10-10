@@ -434,7 +434,7 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
     QueryStateManager session = ColQuerySessions.getByCloudQueryId(context.getFragmentInstanceId().getQueryId().getId());
     if(session != null) {
         if(session.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY){
-            System.out.println("设置是否为Exchange Scan");
+//            System.out.println("设置是否为Exchange Scan");
             //                System.out.println("设置成功，id为"+operatorContext.getPlanNodeId().getId());
             session.setScanPathExchangeByPlanNodeId(operatorContext.getPlanNodeId().getId(),
                     operatorContext.getDriverContext().getOperatorContexts().size() == 1);

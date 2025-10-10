@@ -115,16 +115,16 @@ public class IdentitySinkOperator implements Operator {
                 operatorContext.getInstanceContext().getId().getQueryId().getId());
             if(queryStateManager != null && queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
                 if(queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY){
-                    System.out.println("\n要结束啦！");
+//                    System.out.println("\n要结束啦！");
                     colSinkHandle.setNoMoreTsBlocksOfOneChannel(0);
-                    System.out.println("\ncolSinkHandle closed");
+//                    System.out.println("\ncolSinkHandle closed");
                     queryStateManager.getStateMachine().transitionToPreClosed();
                     //调用关闭函数
                   if(queryStateManager.isSingleScan()){
                       String planNodeId = queryStateManager.getAllScanPlanNodeIdList().get(0);
                       QueryStateManager.ScanStates scanStates = queryStateManager.getAllScanStatesList().get(0);
                       long offset = scanStates.getScanTimestamp();
-                      System.out.println("返回的offset为："+offset);
+//                      System.out.println("返回的offset为："+offset);
                       String seriesPath = queryStateManager.getSeriesPath(planNodeId);
                       callColQueryCloseWithSingleScan(planNodeId,offset,seriesPath,scanStates.isCouldEqual());
 
@@ -148,8 +148,8 @@ public class IdentitySinkOperator implements Operator {
                           TsBlock cacheRight = queryStateManager.getLeftOuterJoinCacheRight();
                           ScanInfoConverter.TsBlockColumns valueColumnsLeft=ScanInfoConverter.convertTsBlockToColumns(cacheLeft);
                           ScanInfoConverter.TsBlockColumns valueColumnsRight=ScanInfoConverter.convertTsBlockToColumns(cacheRight);
-                          System.out.println(queryStateManager.getStateSummary());
-                          System.out.println("准备发送的cache"+showTsBlock(cacheLeft)+showTsBlock(cacheRight));
+//                          System.out.println(queryStateManager.getStateSummary());
+//                          System.out.println("准备发送的cache"+showTsBlock(cacheLeft)+showTsBlock(cacheRight));
                           if(valueColumnsRight==null && valueColumnsLeft!=null){
                               callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumnsLeft.getTimeColumn(),valueColumnsLeft.getValueColumns(),new TimeColumn(),new ArrayList<>());
                           }
@@ -164,7 +164,7 @@ public class IdentitySinkOperator implements Operator {
                               callColQueryCloseWithLeftOuterJoin(scanInfoMap,valueColumnsLeft.getTimeColumn(),valueColumnsLeft.getValueColumns(),valueColumnsRight.getTimeColumn(),valueColumnsRight.getValueColumns());
                           }
                       }else {
-                          System.out.println(queryStateManager.getStateSummary());
+//                          System.out.println(queryStateManager.getStateSummary());
                           callColQueryClose(scanInfoMap);
                       }
                   }

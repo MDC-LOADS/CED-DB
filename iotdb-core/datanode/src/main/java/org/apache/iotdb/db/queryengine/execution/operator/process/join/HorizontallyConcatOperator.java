@@ -252,6 +252,6 @@ public class HorizontallyConcatOperator extends AbstractConsumeAllOperator {
       scanStates.setCouldEqual(true);
     }
       stateManager.setHorizontal(true);
-      System.out.println(stateManager.getStateSummary());
+//      System.out.println(stateManager.getStateSummary());
     }
 }

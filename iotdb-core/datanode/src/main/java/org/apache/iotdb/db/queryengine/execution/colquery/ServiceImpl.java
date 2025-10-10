@@ -90,8 +90,8 @@ public class ServiceImpl implements E2CColService.Iface{
         queryStateManager.setHasLeftOuterJoin(true);
         queryStateManager.setLeftOuterJoinCacheLeft(cacheLeft);
         queryStateManager.setLeftOuterJoinCacheRight(cacheRight);
-        System.out.println(queryStateManager.getStateSummary());
-        System.out.println("接收的cache为："+showTsBlock(cacheLeft)+showTsBlock(cacheRight));
+//        System.out.println(queryStateManager.getStateSummary());
+//        System.out.println("接收的cache为："+showTsBlock(cacheLeft)+showTsBlock(cacheRight));
         queryStateManager.getStateMachine().transitionToPreColQuery();
     }
 
@@ -107,7 +107,7 @@ public class ServiceImpl implements E2CColService.Iface{
             scanStates.setScanTimestamp(value.offset);
             queryStateManager.setScanStates(value.getSeriesPath(),scanStates);
         });
-        System.out.println("接收到的索引为："+queryStateManager.getStateSummary());
+//        System.out.println("接收到的索引为："+queryStateManager.getStateSummary());
         queryStateManager.getStateMachine().transitionToPreColQuery();
 //        notifyAll();
     }
@@ -154,20 +154,20 @@ public class ServiceImpl implements E2CColService.Iface{
                     org.apache.iotdb.db.queryengine.plan.execution.QueryExecution.setCurrentColQueryId(edgeQueryId);
                     try {
                         SQLQueryExecutor.QueryResult result = executor.executeQuery(sql);
-                        System.out.println("✓ 查询成功!");
-                        System.out.println("SQL: " + sql);
-                        System.out.println("列名: " + result.getColumnNames());
-                        System.out.println("数据类型: " + result.getDataTypes());
-                        System.out.println("行数: " + result.getRowCount());
+//                        System.out.println("✓ 查询成功!");
+//                        System.out.println("SQL: " + sql);
+//                        System.out.println("列名: " + result.getColumnNames());
+//                        System.out.println("数据类型: " + result.getDataTypes());
+//                        System.out.println("行数: " + result.getRowCount());
 
-                        if (result.getRowCount() > 0) {
-                            System.out.println("数据:");
-                            for (int i = 0; i < result.getRowCount(); i++) {
-                                System.out.println("  行 " + (i + 1) + ": " + result.getRows().get(i));
-                            }
-                        } else {
-                            System.out.println("没有查询到数据");
-                        }
+//                        if (result.getRowCount() > 0) {
+//                            System.out.println("数据:");
+//                            for (int i = 0; i < result.getRowCount(); i++) {
+//                                System.out.println("  行 " + (i + 1) + ": " + result.getRows().get(i));
+//                            }
+//                        } else {
+//                            System.out.println("没有查询到数据");
+//                        }
                     } finally {
                         // 清理ThreadLocal，避免内存泄露
                         org.apache.iotdb.db.queryengine.plan.execution.QueryExecution.clearCurrentColQueryId();

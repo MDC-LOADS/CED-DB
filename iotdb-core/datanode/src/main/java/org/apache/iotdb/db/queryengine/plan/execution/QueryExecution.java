@@ -191,7 +191,7 @@ public class QueryExecution implements IQueryExecution {
             stateManager.setSql(context.getSql());
             if (logicalPlan.getRootNode() instanceof SeriesScanNode || logicalPlan.getRootNode() instanceof SeriesAggregationScanNode) {
                 stateManager.setSingleScan(true);
-                System.out.println("\n--------\nsingleScan");
+//                System.out.println("\n--------\n singleScan");
             }
         }
 
@@ -338,7 +338,7 @@ public class QueryExecution implements IQueryExecution {
                     printFragmentInstances(distributedPlan.getInstances()));
         }
 
-        System.out.println("\n-----------\ngetType:"+distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType());
+//        System.out.println("\n-----------\ngetType:"+distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType());
         if(distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion) {
             String edgeQueryId = context.getQueryId().getId();
             int dataNodeId = IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
@@ -346,8 +346,8 @@ public class QueryExecution implements IQueryExecution {
             QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
             //设置根节点
             queryStateManager.setRootIdentitySinkId(distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
-            System.out.println("\nFragmentInstances:"+printFragmentInstances(distributedPlan.getInstances()));
-            System.out.println("\nRoot Identity's PlanNodeId is:"+distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId().getId());
+//            System.out.println("\nFragmentInstances:"+printFragmentInstances(distributedPlan.getInstances()));
+//            System.out.println("\nRoot Identity's PlanNodeId is:"+distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId().getId());
         }
 //    distributedPlan.getInstances().get(0)
 

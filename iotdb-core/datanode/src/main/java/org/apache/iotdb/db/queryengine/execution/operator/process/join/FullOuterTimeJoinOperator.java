@@ -212,8 +212,8 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
 
 
         // Update scan states after processing
-        System.out.println("此次join next返回的结果为：");
-        System.out.println("input:"+inputIndex[0]+"   "+inputIndex[1]);
+//        System.out.println("此次join next返回的结果为：");
+//        System.out.println("input:"+inputIndex[0]+"   "+inputIndex[1]);
         TsBlock res = checkTsBlockSizeAndGetResult();
         updateScanStates();
         return res;
@@ -457,13 +457,11 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
                     offsetTime = retainedTsBlock.getTimeByIndex(startOffset);
                     stateManager.updateScanOffset(scanPath, offsetTime);
                     stateManager.updateScanCouldEqual(scanPath, true);
-                    System.out.println("2设置offset为："+offsetTime);
                 }else {
                     // Case 1: 当子算子对应的 inputTsBlocks[] 为空,retainedTsBlock为空时
                     // scanOffset 设置为它的 ScanTimestamp，isCouldEqual 设置为 false
                     stateManager.updateScanOffset(scanPath, scanStates.getScanTimestamp());
                     stateManager.updateScanCouldEqual(scanPath, false);
-                    System.out.println("1设置offset为："+scanStates.getScanTimestamp());
                 }
             } else {
                 long offsetTime;
@@ -471,12 +469,10 @@ public class FullOuterTimeJoinOperator extends AbstractConsumeAllOperator {
                 // Case 4: retainedTsBlock 也不为空，offset 设置为 retainedTsBlock 中的最小时间戳
                 if (retainedTsBlock != null && retainedTsBlock.getPositionCount() > 0) {
                     offsetTime = retainedTsBlock.getTimeByIndex(startOffset); // 最小时间戳（第一个）
-                    System.out.println("4设置offset为："+offsetTime);
                 }
                 // Case 3: retainedTsBlock 为空，scanOffset 设置为 returnedMaxTime
                 else {
                     offsetTime = inputTsBlocks[i].getTimeByIndex(inputIndex[i]);
-                    System.out.println("3设置offset为："+offsetTime);
                 }
 
                 stateManager.updateScanOffset(scanPath, offsetTime);

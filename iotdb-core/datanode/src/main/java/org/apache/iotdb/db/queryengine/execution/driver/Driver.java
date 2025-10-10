@@ -241,14 +241,14 @@ public abstract class Driver implements IDriver {
     QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
     if (queryStateManager !=null && queryStateManager.getRootIdentitySinkId() != null
               && queryStateManager.getRootIdentitySinkId().equals(root.getOperatorContext().getPlanNodeId().getId())) {
-      System.out.println("当前的状态"+queryStateManager.getStateSummary());
+//      System.out.println("当前的状态"+queryStateManager.getStateSummary());
       ColQueryConfig cqc = ColQueryConfig.getInstance();
       if(cqc.isColQuery() && colQuery==cqc.getColQueryWait() && !iscolQuery){
         ResourceMonitor.startColQuery(queryStateManager.getSql(), colQueryId);
-        System.out.println("协同应在此处启动！！！");
+//        System.out.println("协同应在此处启动！！！");
         iscolQuery = true;
       }else{
-        System.out.println("colQuery:"+colQuery);
+//        System.out.println("colQuery:"+colQuery);
         colQuery++;
       }
     }

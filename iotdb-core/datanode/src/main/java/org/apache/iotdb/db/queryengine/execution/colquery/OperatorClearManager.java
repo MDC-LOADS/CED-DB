@@ -33,10 +33,10 @@ public class OperatorClearManager {
         if (!prev) {
             clearedMap.put(planNodeId, true);
             int finished = finishedCount.incrementAndGet();
-            System.out.println("算子 [" + planNodeId + "] 已清空，总完成数 = " + finished);
+//            System.out.println("算子 [" + planNodeId + "] 已清空，总完成数 = " + finished);
 
             if (finished == totalOperators) {
-                System.out.println("✅ ALL FINISHED");
+//                System.out.println("✅ ALL FINISHED");
                 QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
                 if(queryStateManager != null) {
                     queryStateManager.getStateMachine().transitionToClosed();

@@ -53,7 +53,7 @@ public class ResourceMonitor {
         } catch (TException x) {
             x.printStackTrace();
         }
-        System.out.println("协同查询状态机变为启动啦");
+//        System.out.println("协同查询状态机变为启动啦");
         QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
         if(queryStateManager != null) {
             queryStateManager.getStateMachine().transitionToStart();

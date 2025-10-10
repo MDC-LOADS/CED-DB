@@ -111,7 +111,7 @@ public class ServiceImpl implements C2EColService.Iface{
         while(!queryStateManager.getSourceHandle().isFinished()){
             try{
                 Thread.sleep(10);
-                System.out.println("等待关闭SInk channel");
+//                System.out.println("等待关闭SInk channel");
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -169,7 +169,7 @@ public class ServiceImpl implements C2EColService.Iface{
         queryStateManager.setHasLeftOuterJoin(true);
         queryStateManager.setLeftOuterJoinCacheLeft(cacheLeft);
         queryStateManager.setLeftOuterJoinCacheRight(cacheRight);
-        //TODO:清除全部中间状态，恢复查询
+        //清除全部中间状态，恢复查询
         List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
         boolean hasFullOuterJoin =false;
         boolean hasInnerJoin =false;
@@ -200,7 +200,7 @@ public class ServiceImpl implements C2EColService.Iface{
         while(!queryStateManager.getSourceHandle().isFinished()){
             try{
                 Thread.sleep(10);
-                System.out.println("等待关闭SInk channel");
+//                System.out.println("等待关闭SInk channel");
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -215,20 +215,17 @@ public class ServiceImpl implements C2EColService.Iface{
         });
 //        QueryStateManager.getLock().readLock().unlock();
         //test
-        System.out.println("\nColQueryClose success:");
-        for (String planNodeId : queryStateManager.getAllScanPlanNodeIdList()) {
-            System.out.println("planNodeId:"+planNodeId);
-        }
-        for (String seriesPath: queryStateManager.getAllScanPathList()) {
-            System.out.println("seriesPath:"+seriesPath);
-            QueryStateManager.ScanStates scanStates =queryStateManager.getScanStates(seriesPath);
-            System.out.println("scanStates:"+scanStates);
-        }
-        System.out.println("设置新的offset以及数据信息：");
-        System.out.println("快速查看"+queryStateManager.getStateSummary());
-        //test end
-
-        //TODO:清除全部中间状态，恢复查询
+//        System.out.println("\nColQueryClose success:");
+//        for (String planNodeId : queryStateManager.getAllScanPlanNodeIdList()) {
+//            System.out.println("planNodeId:"+planNodeId);
+//        }
+//        for (String seriesPath: queryStateManager.getAllScanPathList()) {
+//            System.out.println("seriesPath:"+seriesPath);
+//            QueryStateManager.ScanStates scanStates =queryStateManager.getScanStates(seriesPath);
+//            System.out.println("scanStates:"+scanStates);
+//        }
+//        System.out.println("设置新的offset以及数据信息：");
+//        System.out.println("快速查看"+queryStateManager.getStateSummary());
         List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
         boolean hasFullOuterJoin =false;
         boolean hasInnerJoin =false;
@@ -262,7 +259,7 @@ public class ServiceImpl implements C2EColService.Iface{
         while(!queryStateManager.getSourceHandle().isFinished()){
             try{
                 Thread.sleep(10);
-                System.out.println("等待关闭SInk channel");
+//                System.out.println("等待关闭SInk channel");
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -270,13 +267,13 @@ public class ServiceImpl implements C2EColService.Iface{
         //更新全部算子状态
 //        queryStateManager.setSeriesPathAndPlanNodeId(planNodeId,seriesPath);
 //        queryStateManager.setScanStates(seriesPath,new QueryStateManager.ScanStates(0,offset,isCloudEqual,false,false));
-        System.out.println("获取到的offset为："+offset);
+//        System.out.println("获取到的offset为："+offset);
         queryStateManager.updateScanOffsetByPlanNodeId(planNodeId,offset);
         queryStateManager.updateScanCouldEqualByPlanNodeId(planNodeId,isCloudEqual);
-        System.out.println("设置新的offset以及数据信息：");
-        System.out.println("快速查看"+queryStateManager.getStateSummary());
+//        System.out.println("设置新的offset以及数据信息：");
+//        System.out.println("快速查看"+queryStateManager.getStateSummary());
         queryStateManager.setSingleScan(true);
-        //TODO:清除全部中间状态，恢复查询
+        //清除全部中间状态，恢复查询
         List<String> planNodeIds = queryStateManager.getAllScanPlanNodeIdList();
         queryStateManager.setOperatorClearManager(planNodeIds);
         queryStateManager.getStateMachine().transitionToPreClosed();

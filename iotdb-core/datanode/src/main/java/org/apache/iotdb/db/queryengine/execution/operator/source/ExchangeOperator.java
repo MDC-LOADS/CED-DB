@@ -113,7 +113,7 @@ public class ExchangeOperator implements SourceOperator {
                     && queryStateManager2.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
                     long currentEndTime = res.getEndTime();
                     queryStateManager2.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
-                    System.out.println("设置时间戳"+currentEndTime+"此时的plan id为："+sourceId.getId());
+//                    System.out.println("设置时间戳"+currentEndTime+"此时的plan id为："+sourceId.getId());
                     if(!queryStateManager2.hasScanSourceHandle(sourceId.getId())) {
                         queryStateManager2.addScanSourceHandle(sourceId.getId(),sourceHandle);
                     }

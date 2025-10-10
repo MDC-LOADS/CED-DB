@@ -803,8 +803,8 @@ public class QueryStateManager {
         preColQueryMs,
         colQueryMs,
         preClosedMs);
-    String infos="colQueryId="+queryId+" state durations(ms): START="+startMs+", PRE_COL_QUERY="+preColQueryMs+", COL_QUERY="+colQueryMs+", PRE_CLOSED="+preClosedMs;
-    System.out.println("\n协同时间："+infos);
+//    String infos="colQueryId="+queryId+" state durations(ms): START="+startMs+", PRE_COL_QUERY="+preColQueryMs+", COL_QUERY="+colQueryMs+", PRE_CLOSED="+preClosedMs;
+//    System.out.println("\n协同时间："+infos);
   }
 
   private void updateStateMetrics(ColQueryState newState) {

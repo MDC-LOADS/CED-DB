@@ -156,7 +156,7 @@ public class IdentitySinkOperator implements Operator {
         QueryStateManager queryStateManager = getSession();
         if(queryStateManager != null){
             if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
-                System.out.println(queryStateManager.getStateSummary());
+//                System.out.println(queryStateManager.getStateSummary());
                 if (queryStateManager.getStateMachine().getState() == ColQueryState.COL_QUERY) {
                     ISourceHandle colSourceHandle=queryStateManager.getSourceHandle();
                     TsBlock tsBlock_rev = null;
@@ -167,7 +167,7 @@ public class IdentitySinkOperator implements Operator {
                         }
                         if(!colSourceHandle.isFinished()){
                             tsBlock_rev = colSourceHandle.receive();
-                            System.out.println("接收数据");
+//                            System.out.println("接收数据");
 //                            System.out.println("接收到的TsBlock："+showTsBlock(tsBlock_rev));
                         }
                     }
@@ -181,28 +181,18 @@ public class IdentitySinkOperator implements Operator {
             needToReturnNull = false;
             return null;
         }
-        System.out.println("\nSink "+this.operatorContext.getPlanNodeId()+"children are: ");
-        for (int i = 0; i < children.size(); i++) {
-            System.out.println("\n"+i+": "+children.get(i).toString());
-        }
+//        System.out.println("\nSink "+this.operatorContext.getPlanNodeId()+"children are: ");
+//        for (int i = 0; i < children.size(); i++) {
+//            System.out.println("\n"+i+": "+children.get(i).toString());
+//        }
         TsBlock res = children.get(downStreamChannelIndex.getCurrentIndex()).nextWithTimer();
-//        if(QueryStateManager.isInitialized()){
-//            QueryStateManager queryStateManager = QueryStateManager.getInstance();
-//            if(queryStateManager.getRootIdentitySinkId()!=null
-//                    && queryStateManager.getStateMachine().getState()== ColQueryState.PRE_COL_QUERY
-//                    && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())){
-//                queryStateManager.getStateMachine().transitionToColQuery();
-//                System.out.println("\n转变为协同查询");
-////                notifyAll();
+//        queryStateManager = getSession();
+//        if(queryStateManager != null){
+//            if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
+//                System.out.println("\n- - - - - - - - - -\nTsBlock comes");
+//                System.out.println(showTsBlock(res));
 //            }
 //        }
-        queryStateManager = getSession();
-        if(queryStateManager != null){
-            if(queryStateManager.getRootIdentitySinkId()!=null && queryStateManager.getRootIdentitySinkId().equals(operatorContext.getPlanNodeId().getId())) {
-//                System.out.println("\n- - - - - - - - - -\nTsBlock comes");
-                System.out.println(showTsBlock(res));
-            }
-        }
         return res;
     }
 

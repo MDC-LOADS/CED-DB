@@ -47,17 +47,17 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
     @Override
     public TsBlock next() throws Exception {
 
-        try{
-            Thread.sleep(10);
-            System.out.println("stop scan 2s");
-        }catch (InterruptedException e){
-            e.printStackTrace();
-        }
+//        try{
+//            Thread.sleep(10);
+//            System.out.println("stop scan 2s");
+//        }catch (InterruptedException e){
+//            e.printStackTrace();
+//        }
 
         if (retainedTsBlock != null) {
             TsBlock res = getResultFromRetainedTsBlock();
             setScanTimestamp(res);
-            System.out.println("最终scan返回的TsBlock-retained"+showTsBlock(res));
+//            System.out.println("最终scan返回的TsBlock-retained"+showTsBlock(res));
             return res;
         }
         // we don't get any data in current batch time slice, just return null
@@ -69,19 +69,19 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
 //        System.out.println(showTsBlock(resultTsBlock));
         TsBlock res = checkTsBlockSizeAndGetResult();
         setScanTimestamp(res);
-        System.out.println("最终scan返回的TsBlock"+showTsBlock(res));
+//        System.out.println("最终scan返回的TsBlock"+showTsBlock(res));
         return res;
     }
 
     private void setScanTimestamp(TsBlock res) {
         QueryStateManager queryStateManager = getSession();
         if(queryStateManager != null){
-            System.out.println("待设置偏移量 scan，id为"+sourceId.getId());
+//            System.out.println("待设置偏移量 scan，id为"+sourceId.getId());
             if(queryStateManager.isHasSeriesPath(sourceId.getId())
                     && !queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
                 long currentEndTime = res.getEndTime();
                 queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime);
-                System.out.println("设置了偏移量 scan，id为"+sourceId.getId());
+//                System.out.println("设置了偏移量 scan，id为"+sourceId.getId());
             }
         }
     }
@@ -105,15 +105,15 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
                 }
             }
             if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
-                System.out.println("准备进入清空");
+//                System.out.println("准备进入清空");
                 if(!queryStateManager.getOperatorClearManager().isCleared(sourceId.getId())){
-                    System.out.println("完成清空");
+//                    System.out.println("完成清空");
                     retainedTsBlock = null;
                     startOffset = 0;
                     //清空管道
                 ISourceHandle sourceHandle = queryStateManager.getScanSourceHandle(sourceId.getId());
                 if(sourceHandle instanceof LocalSourceHandle  && !queryStateManager.isSingleScan()) {
-                    System.out.println("清除了Source管道，plan node id为："+sourceId.getId());
+//                    System.out.println("清除了Source管道，plan node id为："+sourceId.getId());
                     ((LocalSourceHandle) sourceHandle).getSharedTsBlockQueue().fastClear();
                 }
 
@@ -124,7 +124,7 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
                     QueryDataSource dataSource =this.seriesScanUtil.dataSource;
                     Filter newOffsetFilter;
                     QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
-                    System.out.println("设置新查询的filter的offet为："+scanStates.getOffset());
+//                    System.out.println("设置新查询的filter的offet为："+scanStates.getOffset());
                     if(scanStates.isCouldEqual()){
                         newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());
                     }else {
@@ -145,9 +145,9 @@ public abstract class AbstractSeriesScanOperator extends AbstractDataSourceOpera
                             .withGlobalTimeFilter(combinedFilter)
                             .withPushDownFilter(oldScanOptions.getPushDownFilter())
                             .build();
-                    if(oldScanOptions.pushDownLimit!=0){
-                        System.out.println("pushDownLimit不为0:"+oldScanOptions.pushDownLimit);
-                    }
+//                    if(oldScanOptions.pushDownLimit!=0){
+//                        System.out.println("pushDownLimit不为0:"+oldScanOptions.pushDownLimit);
+//                    }
                     builder.withAllSensors(oldScanOptions.getAllSensors());
                     newScanOptions = builder.build();
                     FragmentInstanceContext context = this.seriesScanUtil.context;

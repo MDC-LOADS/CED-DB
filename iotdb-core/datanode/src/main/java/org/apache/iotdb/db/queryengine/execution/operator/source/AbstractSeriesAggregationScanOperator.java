@@ -158,16 +158,16 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
         }
       }
       if(queryStateManager.getStateMachine().getState()== ColQueryState.PRE_CLOSED){
-        System.out.println("准备进入清空");
+//        System.out.println("准备进入清空");
         if(!queryStateManager.getOperatorClearManager().isCleared(sourceId.getId())){
-          System.out.println("完成清空");
+//          System.out.println("完成清空");
           retainedTsBlock = null;
           startOffset = 0;
           inputTsBlock = null;
           //清空管道
           ISourceHandle sourceHandle = queryStateManager.getScanSourceHandle(sourceId.getId());
           if(sourceHandle instanceof LocalSourceHandle && !queryStateManager.isSingleScan()) {
-            System.out.println("清除了Source管道，plan node id为："+sourceId.getId());
+//            System.out.println("清除了Source管道，plan node id为："+sourceId.getId());
             ((LocalSourceHandle) sourceHandle).getSharedTsBlockQueue().fastClear();
           }
 
@@ -178,7 +178,7 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
           QueryDataSource dataSource =this.seriesScanUtil.dataSource;
           Filter newOffsetFilter;
           QueryStateManager.ScanStates scanStates = queryStateManager.getScanStates(seriesPath.getFullPath());
-          System.out.println("设置新查询的filter的offet为："+scanStates.getOffset());
+//          System.out.println("设置新查询的filter的offet为："+scanStates.getOffset());
           curTimeRange = new TimeRange(scanStates.getOffset(),scanStates.getOffset()+timeRangeSize);
           if(scanStates.isCouldEqual()){
             newOffsetFilter = TimeFilterApi.gtEq(scanStates.getOffset());
@@ -200,9 +200,9 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
                   .withGlobalTimeFilter(combinedFilter)
                   .withPushDownFilter(oldScanOptions.getPushDownFilter())
                   .build();
-          if(oldScanOptions.pushDownLimit!=0){
-            System.out.println("pushDownLimit不为0:"+oldScanOptions.pushDownLimit);
-          }
+//          if(oldScanOptions.pushDownLimit!=0){
+//            System.out.println("pushDownLimit不为0:"+oldScanOptions.pushDownLimit);
+//          }
           builder.withAllSensors(oldScanOptions.getAllSensors());
           newScanOptions = builder.build();
           FragmentInstanceContext context = this.seriesScanUtil.context;
@@ -227,12 +227,12 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
   @Override
   public TsBlock next() throws Exception {
 
-    try{
-      Thread.sleep(20);
-      System.out.println("stop scan 2s");
-    }catch (InterruptedException e){
-      e.printStackTrace();
-    }
+//    try{
+//      Thread.sleep(20);
+//      System.out.println("stop scan 2s");
+//    }catch (InterruptedException e){
+//      e.printStackTrace();
+//    }
 
     // start stopwatch, reset leftRuntimeOfOneNextCall
     long start = System.nanoTime();
@@ -278,13 +278,13 @@ public abstract class AbstractSeriesAggregationScanOperator extends AbstractData
   private void setScanTimestamp(TsBlock res) {
     QueryStateManager queryStateManager = getSession();
     if(queryStateManager != null){
-      System.out.println("待设置偏移量 Ascan，id为"+sourceId.getId());
+//      System.out.println("待设置偏移量 Ascan，id为"+sourceId.getId());
       if(queryStateManager.isHasSeriesPath(sourceId.getId())
               && !queryStateManager.isScanPathExchangeByPlanNodeId(sourceId.getId())) {
         long currentEndTime = res.getEndTime();
         queryStateManager.updateScanTimestampByPlanNodeId(sourceId.getId(),currentEndTime+timeRangeSize);
         queryStateManager.updateScanCouldEqualByPlanNodeId(sourceId.getId(),true);
-        System.out.println("设置了偏移量 Ascan，id为"+sourceId.getId());
+//        System.out.println("设置了偏移量 Ascan，id为"+sourceId.getId());
       }
       if(queryStateManager.getTimeRangeSize()==0){
         queryStateManager.setTimeRangeSize(timeRangeSize);

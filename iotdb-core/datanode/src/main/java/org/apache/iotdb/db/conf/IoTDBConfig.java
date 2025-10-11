@@ -125,7 +125,7 @@ public class IoTDBConfig {
   private boolean rpcAdvancedCompressionEnable = false;
 
   /** Port which the JDBC server listens to. */
-  private int rpcPort = 6668;
+  private int rpcPort = 6667;
 
   /** Enable the thrift rpcPort Service ssl. */
   private boolean enableSSL = false;
@@ -918,16 +918,16 @@ public class IoTDBConfig {
   private String internalAddress = "127.0.0.1";
 
   /** Internal port for coordinator */
-  private int internalPort = 10734;
+  private int internalPort = 10730;
 
   /** Internal port for dataRegion consensus protocol */
-  private int dataRegionConsensusPort = 10764;
+  private int dataRegionConsensusPort = 10760;
 
   /** Internal port for schemaRegion consensus protocol */
-  private int schemaRegionConsensusPort = 10754;
+  private int schemaRegionConsensusPort = 10750;
 
   /** Ip and port of config nodes. */
-  private TEndPoint seedConfigNode = new TEndPoint("127.0.0.1", 10714);
+  private TEndPoint seedConfigNode = new TEndPoint("127.0.0.1", 10710);
 
   /** The time of data node waiting for the next retry to join into the cluster */
   private long joinClusterRetryIntervalMs = TimeUnit.SECONDS.toMillis(1);
@@ -958,7 +958,7 @@ public class IoTDBConfig {
   private int seriesPartitionSlotNum = 10000;
 
   /** Port that mpp data exchange thrift service listen to. */
-  private int mppDataExchangePort = 10744;
+  private int mppDataExchangePort = 10740;
 
   /** Core pool size of mpp data exchange. */
   private int mppDataExchangeCorePoolSize = 10;

@@ -46,13 +46,13 @@ public class ConfigNodeConfig {
   private String internalAddress = "127.0.0.1";
 
   /** Used for communication between data node and config node. */
-  private int internalPort = 10714;
+  private int internalPort = 10710;
 
   /** Used for communication between config node and config node. */
-  private int consensusPort = 10724;
+  private int consensusPort = 10720;
 
   /** Used for connecting to the ConfigNodeGroup. */
-  private TEndPoint seedConfigNode = new TEndPoint("127.0.0.1", 10714);
+  private TEndPoint seedConfigNode = new TEndPoint("127.0.0.1", 10710);
 
   // TODO: Read from iotdb-confignode.properties.
   private int configRegionId = 0;

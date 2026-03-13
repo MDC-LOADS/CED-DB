@@ -373,7 +373,7 @@ public class QueryExecution implements IQueryExecution {
           distributedPlan.getInstances().size(),
           printFragmentInstances(distributedPlan.getInstances()));
     }
-    if (distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()
+    if (distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet()!=null && distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()
         == DataRegion) {
       QueryStateManager session2 = ColQuerySessions.getByCloudQueryId(context.getQueryId().getId());
       if (session2 != null) {

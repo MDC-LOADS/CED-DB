@@ -117,7 +117,7 @@ public class ExchangeOperator implements SourceOperator {
                     if(!queryStateManager2.hasScanSourceHandle(sourceId.getId())) {
                         queryStateManager2.addScanSourceHandle(sourceId.getId(),sourceHandle);
                     }
-                    System.out.println(showTsBlock(res));
+//                    System.out.println(showTsBlock(res));
                 }
             }
         }

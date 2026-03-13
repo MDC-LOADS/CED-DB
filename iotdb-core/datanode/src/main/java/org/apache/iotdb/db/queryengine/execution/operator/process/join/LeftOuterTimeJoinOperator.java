@@ -176,19 +176,19 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
 
         // Update left outer join cache after processing
         updateLeftOuterJoinCache();
-        if(leftTsBlock != null) {
-            System.out.println("leftTsBlock: " + showTsBlock(leftTsBlock));
-            System.out.println("leftIndex: " + leftIndex);
-        }else {
-            System.out.println("leftTsBlock: null");
-        }
-
-        if(rightTsBlock != null) {
-            System.out.println("rightTsBlock: " + showTsBlock(rightTsBlock));
-            System.out.println("rightIndex: " + rightIndex);
-        }else {
-            System.out.println("rightTsBlock: null");
-        }
+//        if(leftTsBlock != null) {
+//            System.out.println("leftTsBlock: " + showTsBlock(leftTsBlock));
+//            System.out.println("leftIndex: " + leftIndex);
+//        }else {
+//            System.out.println("leftTsBlock: null");
+//        }
+//
+//        if(rightTsBlock != null) {
+//            System.out.println("rightTsBlock: " + showTsBlock(rightTsBlock));
+//            System.out.println("rightIndex: " + rightIndex);
+//        }else {
+//            System.out.println("rightTsBlock: null");
+//        }
         return res;
     }
 

@@ -339,7 +339,8 @@ public class QueryExecution implements IQueryExecution {
         }
 
 //        System.out.println("\n-----------\ngetType:"+distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType());
-        if(distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion) {
+        if(distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet()==null ||
+                distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion) {
             String edgeQueryId = context.getQueryId().getId();
             int dataNodeId = IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
             String colQueryId = edgeQueryId + "-" + dataNodeId;

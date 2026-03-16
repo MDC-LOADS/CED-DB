@@ -357,21 +357,6 @@ public class QueryExecution implements IQueryExecution {
                 }
             }
         }
-//        if(distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet()!=null){
-//            if(distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet()==null ||
-//                    distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()==DataRegion) {
-//                String edgeQueryId = context.getQueryId().getId();
-//                int dataNodeId = IoTDBDescriptor.getInstance().getConfig().getDataNodeId();
-//                String colQueryId = edgeQueryId + "-" + dataNodeId;
-//                QueryStateManager queryStateManager = ColQuerySessions.getByEdgeQueryId(colQueryId);
-//                //设置根节点
-//                queryStateManager.setRootIdentitySinkId(distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
-//            System.out.println("\nFragmentInstances:"+printFragmentInstances(distributedPlan.getInstances()));
-//            System.out.println("\nRoot Identity's PlanNodeId is:"+distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId().getId());
-//            }
-//        }
-//    distributedPlan.getInstances().get(0)
-
 
         // check timeout after building distribution plan because it could be time-consuming in some
         // cases.

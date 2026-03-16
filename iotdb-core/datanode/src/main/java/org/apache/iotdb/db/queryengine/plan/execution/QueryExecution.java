@@ -19,9 +19,11 @@
 package org.apache.iotdb.db.queryengine.plan.execution;
 
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
+import org.apache.iotdb.common.rpc.thrift.TRegionReplicaSet;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.exception.IoTDBException;
+import org.apache.iotdb.commons.partition.ExecutorType;
 import org.apache.iotdb.commons.service.metric.PerformanceOverviewMetrics;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
@@ -373,13 +375,34 @@ public class QueryExecution implements IQueryExecution {
           distributedPlan.getInstances().size(),
           printFragmentInstances(distributedPlan.getInstances()));
     }
-    if (distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet()!=null && distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()
-        == DataRegion) {
-      QueryStateManager session2 = ColQuerySessions.getByCloudQueryId(context.getQueryId().getId());
-      if (session2 != null) {
-        // 设置根节点
-        session2.setRootIdentitySinkId(
+
+    List<FragmentInstance> instances = distributedPlan.getInstances();
+    if (instances != null && !instances.isEmpty()) {
+      FragmentInstance instance = instances.get(0);
+      ExecutorType executorType = instance.getExecutorType();
+      if (executorType != null) {
+        TRegionReplicaSet regionReplicaSet = executorType.getRegionReplicaSet();
+        // 根据业务逻辑判断：如果regionReplicaSet为null或者其region类型是DataRegion
+        if (regionReplicaSet == null || regionReplicaSet.getRegionId().getType() == DataRegion) {
+          QueryStateManager session2 = ColQuerySessions.getByCloudQueryId(context.getQueryId().getId());
+          if (session2 != null) {
+            // 设置根节点
+            session2.setRootIdentitySinkId(
             distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
+
+          }
+        }
+      }
+    }
+
+
+//    if (distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet()!=null && distributedPlan.getInstances().get(0).getExecutorType().getRegionReplicaSet().getRegionId().getType()
+//        == DataRegion) {
+//      QueryStateManager session2 = ColQuerySessions.getByCloudQueryId(context.getQueryId().getId());
+//      if (session2 != null) {
+//        // 设置根节点
+//        session2.setRootIdentitySinkId(
+//            distributedPlan.getInstances().get(0).getFragment().getPlanNodeTree().getPlanNodeId());
 //        System.out.println("\nFragmentInstances:" + printFragmentInstances(distributedPlan.getInstances()));
 //        System.out.println(
 //            "\nRoot Identity's PlanNodeId is:"
@@ -389,9 +412,9 @@ public class QueryExecution implements IQueryExecution {
 //                    .getFragment()
 //                    .getPlanNodeTree()
 //                    .getPlanNodeId()
-//                    .getId());
-      }
-    }
+//                   .getId());
+//      }
+//    }
     // check timeout after building distribution plan because it could be time-consuming in some
     // cases.
     checkTimeOutForQuery();

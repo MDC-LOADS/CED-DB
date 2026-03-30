@@ -9,13 +9,82 @@
 # 简介
 CED-DB(Cloud-Edge-Device DataBase)是一款云边端协同时序数据库管理系统，可以为用户提供数据收集、存储和查询等任务。CED-DB由于可以实现云服务器、边缘设备和传感器的三端协同，因此可以在满足工业 IoT 领域中海量数据处理、存储和复杂数据查询分析的需求的同时，还可以将查询任务转移，分散边缘设备的查询压力。
 
+
+# 复现实验说明
+
+
+本文档提供了复现本项目实验的完整步骤说明。
+
+---
+## 1. 使用 IoT-Benchmark 生成数据
+
+
+使用如下配置运行 [IoT-Benchmark](https://github.com/thulab/iot-benchmark) 生成实验数据，我们写入了必要的配置参数，详情使用教程参见[IoT-Benchmark](https://github.com/thulab/iot-benchmark)：
+
+```properties
+DB_SWITCH=IoTDB-130-SESSION_BY_TABLET
+IoTDB_DIALECT_MODE=tree
+LOOP=2000000
+BATCH_SIZE_PER_WRITE=400
+DEVICE_NUMBER=50
+SENSOR_NUMBER=100
+GROUP_NUMBER=5
+POINT_STEP=1
+START_TIME=2024-01-01T00:00:00+08:00
+DOUBLE_LENGTH=15
+```
+
+---
+
+## 2. 数据同步或导入
+
+
+数据生成后，需要将数据导入实验环境，可选方式包括：
+
+- 使用 **LOADS** 进行热同步  
+- 使用 TsFile [导入导出工具](https://iotdb.apache.org/UserGuide/V1.3.x/Tools-System/Data-Import-Tool-1-3-4.html) 
+- 使用 IoTDB [数据同步工具](https://iotdb.apache.org/UserGuide/V1.3.x/User-Manual/Data-Sync_apache.html)
+
+---
+
+## 3. 修改 CEDCQ 配置
+
+根据实际部署环境修改配置,详情在下方CEDCQ章节，包括：
+
+- 节点 IP 与端口  
+- 数据路径   
+- 执行参数  
+
+---
+
+## 4. 运行实验
+
+完成以上步骤后，即可运行 CEDCQ 查询实验。
+
+---
+
+## Notes | 注意事项
+
+- 不同硬件和网络环境下结果可能略有差异  
+- 请确保数据和配置正确后再运行实验  
+
+---
+
+## 流程总结
+
+1. Generate data | 生成数据  
+2. Import or sync data | 导入或同步数据  
+3. Configure CEDCQ | 修改配置  
+4. Run queries | 执行查询  
+
+
 # 主要特点
 
 CED-DB的主要特点如下：
 
 1.分层架构与协同计算。CED-DB的云端提供高性能查询能力、高级分析与机器学习能力；边端负责本地数据预处理、初步分析、数据筛选与压缩，减少云端计算与存储压力；端侧直接从设备采集时序数据，具备低延迟处理能力，可实现本地存储。
 2.灵活的查询与分析能力。CED-DB在边端查询负载过高时，会将查询任务发送至云端无缝进行查询，并会在边端负载恢复时重新切换回边端，实现了查询的灵活切换。
-3.与先进的开放源码生态系统的无缝集成。CED-DB与IoTDB同源，在集成全部IoTDB全部功能的同时，支持LOADS数据库网页版Demo。
+3.与先进的开放源码生态系统的无缝集成。CED-DB与IoTDB同源，在集成全部IoTDB全部功能的同时，支持[LOADS](https://github.com/MDC-LOADS/LOADS)数据库网页版Demo。
 4.学习成本非常低。使用IoTDB原生语言，支持类似sql的语言、JDBC标准API和易于使用的导入/导出工具。
 <!-- TOC -->
 
@@ -92,72 +161,82 @@ Thrift官方网址为：https://thrift.apache.org/
 
 从 git 克隆源代码:
 ```
-https://github.com/MDC-LOADS/Cloud-Edge-Device-DataBase.git
+https://github.com/MDC-LOADS/CED-DB.git
 ```
 默认的主分支是Edge分支，如果你想使用Cloud版本，请切换 tag:
 ```
-git checkout CED-DB-Cloud
+git checkout CED-DB-Cloud-2.0
 ```
 如果想使用Edge版本，请切换tag：
 ```
-git checkout CED-DB-Edge
+git checkout CED-DB-Edge-2.0
 ```
-如果您想使用分布式环境，需要将下面的代码进行修改：
+如果您想使用分布式环境，需要将下面的配置文件进行修改：
 # Edge版
-在`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/AbstractSeriesAggregationScanOperator.java`,`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/SeriesScanOperator.java`,`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/service/IOMonitor.java`,`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/ServiceImpl.java`中将`localhost`改为`cloud_ip`，端口号改为`10740`。
-在`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/ServerStart.java`中将`localhost`改为`0.0.0.0`。
-在`/conf_edge/iotdb-confignode.properties`中配置confignode：
+在`/dev-conf/iotdb-system.properties`中配置confignode：
 ```
 cn_internal_address=edge_ip
-cn_internal_port=10710
-cn_consensus_port=10720
 cn_seed_config_node=edge_ip:10710
 ```
-在`/conf_edge/iotdb-datanode.properties`中配置datanode：
+在`/dev-conf/iotdb-system.properties`中配置datanode：
 ```
 dn_rpc_address=0.0.0.0
-dn_rpc_port=6667
-n_internal_address=0.0.0.0
-dn_internal_port=10730
-dn_mpp_data_exchange_port=10740
-dn_schema_region_consensus_port=10750
-dn_data_region_consensus_port=10760
+dn_internal_address=0.0.0.0
 dn_seed_config_node=edge_ip:10710
 ```
 # Cloud版
-在`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/AbstractSeriesAggregationScanOperator.java`,`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/SeriesScanOperator.java`,`iotdb-core\datanode\src\main\java\org\apache\iotdb\db\queryengine\execution\operator\process\FilterAndProjectOperator.java`中将`localhost`改为`cloud_ip`，端口号改为`10740`。
-在`iotdb-core\datanode\src\main\java\org\apache\iotdb\db\queryengine\plan\planner\OperatorTreeGenerator.java`中将`ackSend()`中的`localhost`改为`cloud_ip`，端口号改为`10740`。
-在`iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/ServerStart.java`中将`localhost`改为`0.0.0.0`。
-在`/conf_cloud/iotdb-confignode.properties`中配置confignode：
+在`/dev-conf/iotdb-system.properties`中配置confignode：
 ```
 cn_internal_address=cloud_ip
-cn_internal_port=10710
-cn_consensus_port=10720
 cn_seed_config_node=cloud_ip:10710
 ```
-在`/conf_cloud/iotdb-datanode.properties`中配置datanode：
+在`/dev-conf/iotdb-system.properties`中配置datanode：
 ```
 dn_rpc_address=0.0.0.0
-dn_rpc_port=6667
-n_internal_address=0.0.0.0
-dn_internal_port=10730
-dn_mpp_data_exchange_port=10740
-dn_schema_region_consensus_port=10750
-dn_data_region_consensus_port=10760
+dn_internal_address=0.0.0.0
 dn_seed_config_node=cloud_ip:10710
 ```
+
+### CEDCQ
+如果你想开启CEDCQ功能，需要将下面的配置文件进行修改：
+
+# Edge版
+在`/dev-conf/iotdb-colquery.properties`中配置：
+```
+colquery.bind.ip=0.0.0.0
+colquery.local.ip=edge_ip
+colquery.remote.ip=cloud_ip
+colquery.local.rpc.port=9090
+colquery.remote.rpc.port=9090
+colquery.local.mpp.port=10740
+colquery.remote.mpp.port=10740
+colquery.col.query.wait=3. #控制协同时机
+colquery.iscol.query=true
+```
+# Cloud版
+在`/dev-conf/iotdb-colquery.propertie`中配置：
+```
+colquery.bind.ip=0.0.0.0
+colquery.local.ip=cloud_ip
+colquery.remote.ip=edge_ip
+colquery.local.rpc.port=9090
+colquery.remote.rpc.port=9090
+colquery.local.mpp.port=10740
+colquery.remote.mpp.port=10740
+```
+
 ### 源码编译 CED-DB
 
 在 Cloud-Edge-Device-DateBase 根目录下执行:
 
 ```
-> mvn clean package -pl distribution -am -DskipTests -Dcheckstyle.skip=true
+> sudo clean package -pl distribution -am -DskipTests -Dcheckstyle.skip=true -Dspotless.skip=true
 ```
 
 当您需要使用代理时，可以执行下述命令：
 
 ```
-> mvn -T 32 clean package -pl distribution -am -DskipTests -Dhttp.proxyHost=[your_ip] -Dhttp.proxyPort=[your_port] -Dhttps.proxyHost=[your_ip] -Dhttps.proxyPort=[your_port] -Dcheckstyle.skip=true
+> mvn clean package -pl distribution -am -DskipTests -Dhttp.proxyHost=[your_ip] -Dhttp.proxyPort=[your_port] -Dhttps.proxyHost=[your_ip] -Dhttps.proxyPort=[your_port] -Dcheckstyle.skip=true -Dspotless.skip=true
 ```
 
 编译完成后, CED-DB 二进制包将生成在: "distribution/target".
@@ -188,74 +267,30 @@ dn_seed_config_node=cloud_ip:10710
 
 启动Edge版本：
 
-需要在`distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh`文件中`source "$(dirname "$0")/iotdb-common.sh"`的下方添加下列命令：
-
-```
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5200"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_edge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_edge/logback-confignode.xml"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_edge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.ConfigNodeEdge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_edge"
-```
-
-在`distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-server-bin/sbin/start-datanode.sh`文件中`source "$(dirname "$0")/iotdb-common.sh"`的下方添加下列命令：
-
-```
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5210"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_edge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_edge/logback-datanode.xml"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_edge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.DataNodeEdge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_edge"
-```
-
 运行ConfigNode-Edge：
 
 ```
-sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh
+sudo distribution/target/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/sbin/start-confignode.sh -c [your config]
 ```
 运行DataNode-Edge：
 
 ```
-sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-server-bin/sbin/start-datanode.sh
+sudo distribution/target/apache-iotdb-1.3.4-SNAPSHOT-datanode-bin/apache-iotdb-1.3.4-SNAPSHOT-server-bin/sbin/start-datanode.sh -c [your config]
 ```
 
 启动Cloud版本：
 
-需要在`distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh`文件中`source "$(dirname "$0")/iotdb-common.sh"`的下方添加下列命令：
-
-```
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5200"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_cloud"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_cloud/logback-confignode.xml"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_cloud"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.ConfigNodeEdge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_cloud"
-```
-
-在`distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-server-bin/sbin/start-datanode.sh`文件中`source "$(dirname "$0")/iotdb-common.sh"`的下方添加下列命令：
-
-```
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5210"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_cloud"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_cloud/logback-datanode.xml"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_cloud"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.DataNodeEdge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_cloud"
-```
-
 运行ConfigNode-Cloud：
 
 ```
-sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh
+sudo distribution/target/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/sbin/start-confignode.sh -c [your config]
 ```
 运行DataNode-Cloud：
 
 ```
-sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-server-bin/sbin/start-datanode.sh
+sudo distribution/target/apache-iotdb-1.3.4-SNAPSHOT-datanode-bin/apache-iotdb-1.3.4-SNAPSHOT-server-bin/sbin/start-datanode.sh -c [your config]
 ```
-注意：如果您需要伪分布式环境，请将上述的边端端口号改为5201和5211.
+
 
 ### 使用 CED-DB
 
@@ -271,12 +306,12 @@ CED-DB提供了与服务器交互的不同方式，这里我们将介绍使用 C
 下面是启动 Cli-Edge 的命令:
 
 ```
-> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/sbin/start-cli.sh -p 6668
+> distribution/target/apache-iotdb-1.3.4-SNAPSHOT-cli-bin/apache-iotdb-1.3.4-SNAPSHOT-cli-bin/sbin/start-cli.sh
 ```
 下面是启动 Cli-Cloud 的命令:
 
 ```
-> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/sbin/start-cli.sh -p 6667
+> distribution/target/apache-iotdb-1.3.4-SNAPSHOT-cli-bin/apache-iotdb-1.3.4-SNAPSHOT-cli-bin/sbin/start-cli.sh
 ```
 
 命令行客户端是交互式的，所以如果一切就绪，您应该看到欢迎标志和声明:
@@ -424,7 +459,7 @@ CED-DB> exit
 server 可以使用 "ctrl-C" 或者执行下面的脚本:
 
 ```
-> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/stop-standalone.sh
+> distribution/target/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/sbin/stop-standalone.sh
 ```
 # 联系我们
 
@@ -439,5 +474,3 @@ server 可以使用 "ctrl-C" 或者执行下面的脚本:
 # 声明
 * 本项目由哈尔滨工业大学海量数据计算研究中心主要负责完成，IoTDB团队作为合作方参与项目的部分工作。
 * 本项目为《云边端协同数据库管理系统》项目的一个研究成果，相关成果仅用于学术研究目的，未经授权请勿转载或用于商业用途。
-
-<!-- 获取更多内容，请查看 [加入社区](https://github.com/apache/iotdb/issues/1995)  -->

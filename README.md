@@ -5,237 +5,311 @@
 [![Maven Version](https://maven-badges.herokuapp.com/maven-central/org.apache.iotdb/iotdb-parent/badge.svg)](http://search.maven.org/#search|gav|1|g:"org.apache.iotdb")
 ![](https://img.shields.io/badge/java--language-1.8%20%7C%2011%20%7C%2017-blue.svg)
 
-# Overview
-CED-DB (Cloud-Edge-Device DataBase) is a cloud-edge-device collaborative time-series database management system that provides users with data collection, storage, and query capabilities. By enabling seamless collaboration between cloud servers, edge devices, and sensors, CED-DB efficiently handles massive data processing, storage, and complex queries in the industrial IoT domain. Additionally, it can offload query tasks to the cloud, thereby reducing query pressure on edge devices.
+# Introduction
+CED-DB (Cloud-Edge-Device DataBase) is a cloud-edge-device collaborative time-series database management system that provides users with data collection, storage, and query capabilities. By enabling collaboration among cloud servers, edge devices, and sensors, CED-DB can satisfy the demands of massive data processing, storage, and complex query analysis in industrial IoT scenarios, while also supporting query task migration to relieve query pressure on edge devices.
 
-# Main Features
+# Reproducing the Experiments
+
+This document provides a complete step-by-step guide for reproducing the experiments in this project.
+
+---
+## 1. Generate Data Using IoT-Benchmark
+
+Use the following configuration to generate the experimental dataset with [IoT-Benchmark](https://github.com/thulab/iot-benchmark). We include the necessary configuration parameters below. For detailed usage instructions, please refer to [IoT-Benchmark](https://github.com/thulab/iot-benchmark):
+
+```properties
+DB_SWITCH=IoTDB-130-SESSION_BY_TABLET
+IoTDB_DIALECT_MODE=tree
+LOOP=2000000
+BATCH_SIZE_PER_WRITE=400
+DEVICE_NUMBER=50
+SENSOR_NUMBER=100
+GROUP_NUMBER=5
+POINT_STEP=1
+START_TIME=2024-01-01T00:00:00+08:00
+DOUBLE_LENGTH=15
+```
+
+---
+
+## 2. Data Synchronization or Import
+
+After the data is generated, it needs to be imported into the experimental environment. Available options include:
+
+- Use **LOADS** for hot synchronization  
+- Use the TsFile [Import/Export Tool](https://iotdb.apache.org/UserGuide/V1.3.x/Tools-System/Data-Import-Tool-1-3-4.html)  
+- Use the IoTDB [Data Synchronization Tool](https://iotdb.apache.org/UserGuide/V1.3.x/User-Manual/Data-Sync_apache.html)
+
+---
+
+## 3. Configure CEDCQ
+
+Modify the configuration according to the actual deployment environment. See the CEDCQ section below for details. This includes:
+
+- Node IP addresses and ports  
+- Data paths  
+- Execution parameters  
+
+---
+
+## 4. Run the Experiments
+
+After completing the steps above, you can run query experiments using CEDCQ.
+
+---
+
+## Notes
+
+- Results may vary slightly under different hardware and network environments  
+- Please ensure that the data and configuration are correct before running the experiments  
+
+---
+
+## Workflow Summary
+
+1. Generate data  
+2. Import or synchronize data  
+3. Configure CEDCQ  
+4. Run queries  
+
+# Key Features
+
 The main features of CED-DB are as follows:
 
-1. Hierarchical Architecture and Collaborative Computing.
-* The cloud provides high-performance query capabilities, advanced analytics, and machine learning capabilities.
-* The edge is responsible for local data preprocessing, preliminary analysis, data filtering, and compression, reducing computational and storage pressure on the cloud.
-* The device directly collects time-series data from sensors, offering low-latency processing and local storage capabilities.
-2. Flexible Query and Analysis Capabilities
-* When the query load at the edge becomes too high, CED-DB seamlessly offloads queries to the cloud for processing. Once the edge load returns to normal, the queries are switched back to the edge, enabling flexible query switching.
-3. Seamless Integration with Advanced Open-Source Ecosystems
-* CED-DB shares the same origin as IoTDB and fully integrates all of IoTDB's functionalities.
-* Additionally, it supports LOADS database web-based demos for enhanced usability.
-4. Low Learning Curve
-* CED-DB uses IoTDB's native query language, supporting SQL-like syntax, JDBC standard API, and easy-to-use import/export tools, making it easy to learn and use.
+1. **Hierarchical architecture and collaborative computing.** The cloud side of CED-DB provides high-performance query capabilities, advanced analytics, and machine learning capabilities. The edge side is responsible for local data preprocessing, preliminary analysis, data filtering, and compression, thereby reducing cloud-side computation and storage pressure. The device side directly collects time-series data from devices, supports low-latency processing, and can provide local storage.
+2. **Flexible query and analytics capabilities.** When the query load on the edge side becomes too high, CED-DB can seamlessly send query tasks to the cloud for execution, and switch the queries back to the edge side once the edge load recovers, enabling flexible query migration.
+3. **Seamless integration with an advanced open-source ecosystem.** CED-DB shares the same origin as IoTDB. While integrating all IoTDB features, it also supports the [LOADS](https://github.com/MDC-LOADS/LOADS) database web demo.
+4. **Very low learning cost.** It uses the native IoTDB language and supports SQL-like syntax, the standard JDBC API, and easy-to-use import/export tools.
 
 <!-- TOC -->
-## Outline
 
+## Table of Contents
 - [CED-DB](#ced-db)
-- [Overview](#overview)
-- [Main Features](#main-features)
-  - [Outline](#outline)
+- [Introduction](#introduction)
+- [Key Features](#key-features)
+  - [Table of Contents](#table-of-contents)
 - [Quick Start](#quick-start)
-  - [Prerequisites](#prerequisites)
+  - [Environment Preparation](#environment-preparation)
   - [Installation](#installation)
-    - [Building from Source](#building-from-source)
-      - [Configurations](#configurations)
-  - [Start](#start)
+    - [Build from Source](#build-from-source)
+      - [Configuration](#configuration)
+  - [Getting Started](#getting-started)
     - [Start CED-DB](#start-ced-db)
     - [Use CED-DB](#use-ced-db)
-      - [Use Cli](#use-cli)
+      - [Use the CLI](#use-the-cli)
       - [Basic Commands](#basic-commands)
     - [Stop CED-DB](#stop-ced-db)
 - [Contact Us](#contact-us)
-- [Statement](#statement)
+- [Disclaimer](#disclaimer)
 
+<!-- /TOC -->
 
 # Quick Start
 
-This short guide will walk you through the basic process of using CED-DB. For more detailed information, please feel free to contact us.
+This short guide walks you through the basic process of using CED-DB. For a more detailed introduction, please contact us.
 
-## Prerequisites
+## Environment Preparation
 To use CED-DB, you need:
-1. Java >= 1.8 (Versions 11 to 17 have been verified; Java 15 is recommended. Ensure the environment variables are set correctly).
+
+1. Java >= 1.8 (versions 11 to 17 have been verified to work, and version 15 is recommended. Please make sure your environment variables are configured correctly).
 2. Maven >= 3.6.
-3. Set max open files to 65,535 to avoid the "too many open files" error.
-4. (Optional) Set `somaxconn` to 65,535 to prevent "connection reset" errors under high loads.
+3. Set `max open files` to 65535 to avoid the `"too many open files"` error.
+4. (Optional) Set `somaxconn` to 65535 to avoid `"connection reset"` errors when the system is under high load.
     ```
     # Linux
     > sudo sysctl -w net.core.somaxconn=65535
-   
+
     # FreeBSD or Darwin
     > sudo sysctl -w kern.ipc.somaxconn=65535
     ```
+
 ## Installation
 
-Here in the Quick Start, we give a brief introduction of using source code to install CED-DB.
+In this quick start, we briefly introduce how to install CED-DB from source.
 
-## Build from source
+## Build from Source
 
-### Prepare Thrift compiler
+### Preparing the Thrift Compiler
 
-Skip this chapter if you are using Windows.
+If you are using Windows, please skip this subsection.
 
-As we use Thrift for our RPC module (communication and
-protocol definition), we involve Thrift during the compilation, so Thrift compiler 0.13.0 (or
-higher) is required to generate Thrift Java code. Thrift officially provides binary compiler for
-Windows, but unfortunately, they do not provide that for Unix OSs.
+We use Thrift as the RPC module to provide client-server communication and protocol support. Therefore, during compilation, we need Thrift 0.13.0 (or higher) to generate the corresponding Java code. Thrift only provides a binary compiler for Windows; on Unix systems, it needs to be compiled from source.
 
-If you have permission to install new softwares, use `apt install` or `yum install` or `brew install`
-to install the Thrift compiler (If you already have installed the thrift compiler, skip this step).
-Then, you may add the following parameter
-when running Maven: `-Dthrift.download-url=http://apache.org/licenses/LICENSE-2.0.txt -Dthrift.exec.absolute.path=<YOUR LOCAL THRIFT BINARY FILE>`.
+If you have installation privileges, you can install the thrift compiler using `apt install`, `yum install`, or `brew install`, and then add the following parameters to the build command below:
+`-Dthrift.download-url=http://apache.org/licenses/LICENSE-2.0.txt -Dthrift.exec.absolute.path=<path to your thrift executable>`.
 
-If not, then you have to compile the thrift compiler, and it requires you install a boost library first.
-Therefore, we compiled a Unix  compiler ourselves and put it onto GitHub, and with the help of a
-maven plugin, it will be  downloaded automatically during compilation.
-This compiler works fine with gcc8 or later, Ubuntu  MacOS, and CentOS, but previous versions
-and other OSs are not guaranteed.
+We have also precompiled a Thrift compiler and uploaded it to GitHub. With the help of a Maven plugin, it can be downloaded automatically during compilation. (For example, if you are compiling on Linux, you may ignore this paragraph.)
+This precompiled Thrift compiler works on gcc8, Ubuntu, CentOS, and macOS, but has not yet been verified on lower gcc versions or other operating systems.
+If you repeatedly get errors indicating that the thrift file cannot be downloaded due to network issues, you need to download it manually and place the compiler in the directory `{project_root}\thrift\target\tools\thrift_0.12.0_0.13.0_linux.exe`.
+If you place it elsewhere, you need to add the following parameter when running the Maven command:
+`-Dthrift.download-url=http://apache.org/licenses/LICENSE-2.0.txt -Dthrift.exec.absolute.path=<path to your thrift executable>`.
 
-If you can not download the thrift compiler automatically because of network problem, you can download
-it yourself, and then either:
-rename your thrift file to `{project_root}\thrift\target\tools\thrift_0.12.0_0.13.0_linux.exe`;
-or, add Maven commands:
-`-Dthrift.download-url=http://apache.org/licenses/LICENSE-2.0.txt -Dthrift.exec.absolute.path=<YOUR LOCAL THRIFT BINARY FILE>`.
+If you are familiar enough with Maven, you may also modify our root `pom.xml` directly to avoid passing the above parameters every time you compile.
+The official Thrift website is: https://thrift.apache.org/
 
-### Compile CED-DB
+### Prepare the Source Code
 
-You can download the source code from:
+Clone the source code from Git:
 ```
-https://github.com/MDC-LOADS/Cloud-Edge-Device-DataBase.git
-```
-The default dev branch is the Edge branch, If you want to use the Cloud branch:
-```
-git checkout CED-DB-Cloud
-```
-If you want to use the Edge branch：
-```
-git checkout CED-DB-Edge
+https://github.com/MDC-LOADS/CED-DB.git
 ```
 
-### Build CED-DB from source
-
-Under the root path of Cloud-Edge-Device-DateBase:
+The default main branch is the Edge branch. If you want to use the Cloud version, switch to the following tag:
 ```
-> mvn clean package -pl distribution -am -DskipTests -Dcheckstyle.skip=true
-```
-After being built, the IoTDB distribution is located at the folder: "distribution/target".
-
-### Only build cli
-
-Under the iotdb/iotdb-client path:
-
-```
-> mvn clean package -pl cli -am -DskipTests
+git checkout CED-DB-Cloud-2.0
 ```
 
-After being built, the IoTDB cli is located at the folder "cli/target".
+If you want to use the Edge version, switch to the following tag:
+```
+git checkout CED-DB-Edge-2.0
+```
 
-### Build Others
+If you want to use a distributed environment, you need to modify the following configuration files:
 
-Using `-P compile-cpp` for compiling cpp client (For more details, read client-cpp's Readme file.)
+# Edge Version
+Configure the confignode in `/dev-conf/iotdb-system.properties`:
+```
+cn_internal_address=edge_ip
+cn_seed_config_node=edge_ip:10710
+```
 
-**NOTE: Directories "`thrift/target/generated-sources/thrift`", "`thrift-sync/target/generated-sources/thrift`",
-"`thrift-cluster/target/generated-sources/thrift`", "`thrift-influxdb/target/generated-sources/thrift`"
-and "`antlr/target/generated-sources/antlr4`" need to be added to sources roots to avoid compilation errors in the IDE.**
+Configure the datanode in `/dev-conf/iotdb-system.properties`:
+```
+dn_rpc_address=0.0.0.0
+dn_internal_address=0.0.0.0
+dn_seed_config_node=edge_ip:10710
+```
 
-**In IDEA, you just need to right click on the root project name and choose "`Maven->Reload Project`" after
-you run `mvn package` successfully.**
+# Cloud Version
+Configure the confignode in `/dev-conf/iotdb-system.properties`:
+```
+cn_internal_address=cloud_ip
+cn_seed_config_node=cloud_ip:10710
+```
 
-### Configurations
+Configure the datanode in `/dev-conf/iotdb-system.properties`:
+```
+dn_rpc_address=0.0.0.0
+dn_internal_address=0.0.0.0
+dn_seed_config_node=cloud_ip:10710
+```
 
-configuration files are under "conf" folder
+### CEDCQ
 
-* environment config module (`datanode-env.bat`, `datanode-env.sh`),
-* system config module (`iotdb-datanode.properties`)
-* log config module (`logback.xml`).
+If you want to enable the CEDCQ function, you need to modify the following configuration files:
 
-## Start
+# Edge Version
+Configure `/dev-conf/iotdb-colquery.properties`:
+```
+colquery.bind.ip=0.0.0.0
+colquery.local.ip=edge_ip
+colquery.remote.ip=cloud_ip
+colquery.local.rpc.port=9090
+colquery.remote.rpc.port=9090
+colquery.local.mpp.port=10740
+colquery.remote.mpp.port=10740
+colquery.col.query.wait=3. # controls the collaboration timing
+colquery.iscol.query=true
+```
 
-You can go through the following steps to test the installation. If there is no error returned after execution, the installation is completed.
+# Cloud Version
+Configure `/dev-conf/iotdb-colquery.propertie`:
+```
+colquery.bind.ip=0.0.0.0
+colquery.local.ip=cloud_ip
+colquery.remote.ip=edge_ip
+colquery.local.rpc.port=9090
+colquery.remote.rpc.port=9090
+colquery.local.mpp.port=10740
+colquery.remote.mpp.port=10740
+```
+
+### Compile CED-DB from Source
+
+Run the following command in the root directory of Cloud-Edge-Device-DateBase:
+
+```
+> sudo clean package -pl distribution -am -DskipTests -Dcheckstyle.skip=true -Dspotless.skip=true
+```
+
+If you need to use a proxy, you can run the following command:
+
+```
+> mvn clean package -pl distribution -am -DskipTests -Dhttp.proxyHost=[your_ip] -Dhttp.proxyPort=[your_port] -Dhttps.proxyHost=[your_ip] -Dhttps.proxyPort=[your_port] -Dcheckstyle.skip=true -Dspotless.skip=true
+```
+
+After compilation, the CED-DB binary package will be generated in: `distribution/target`.
+
+### Compile Other Modules
+
+By adding `-P compile-cpp`, you can compile the C++ client API.
+
+**Note:** The following directories need to be added to the source root to avoid compilation errors in the IDE:
+`thrift/target/generated-sources/thrift`, `thrift-sync/target/generated-sources/thrift`, `thrift-cluster/target/generated-sources/thrift`, `thrift-influxdb/target/generated-sources/thrift`, and `antlr/target/generated-sources/antlr4`.
+
+**For IntelliJ IDEA:** After compiling with the Maven command above, right-click the project name and select `Maven -> Reload project`.
+
+### Configuration
+
+The configuration files are located in the `conf` folder (`edge_conf` for the Edge version and `cloud_conf` for the Cloud version):
+* Environment configuration module (`datanode-env.bat`, `datanode-env.sh`)
+* System configuration module (`iotdb-datanode.properties`)
+* Logging configuration module (`logback.xml`)
+
+## Getting Started
+
+You can test the installation by following the steps below. If no errors are returned, the installation is complete.
 
 ### Start CED-DB
 
-You can start CED-DB by running the script in the sbin folder. The specific steps are as follows (Linux):
+You can start CED-DB by running the scripts in the `sbin` folder. The specific steps are as follows (Linux):
 
-1. Launch the Edge version:
-
-You need to add the following command below `source "$(dirname "$0")/iotdb-common.sh"` in the `distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh` file:
-
-```
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5201"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_edge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_edge/logback-confignode.xml"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_edge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.ConfigNodeEdge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_edge"
-```
-Add the following command below `"$(dirname "$0")/iotdb-common.sh" `in the `distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/sbin/start-datanode.sh` file:
-
-```
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5211"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_edge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_edge/logback-datanode.xml"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_edge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.DataNodeEdge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_edge"
-```
+Start the Edge version:
 
 Run ConfigNode-Edge:
 ```
-sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh
+sudo distribution/target/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/sbin/start-confignode.sh -c [your config]
 ```
+
 Run DataNode-Edge:
-
 ```
-sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/sbin/start-datanode.sh
-```
-
-2. Launch the Cloud version:
-
-You need to add the following command below `source "$(dirname "$0")/iotdb-common.sh"` in the `distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh` file:
-
-```
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5200"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_cloud"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_cloud/logback-confignode.xml"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_cloud"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.ConfigNodeEdge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_cloud"
+sudo distribution/target/apache-iotdb-1.3.4-SNAPSHOT-datanode-bin/apache-iotdb-1.3.4-SNAPSHOT-server-bin/sbin/start-datanode.sh -c [your config]
 ```
 
-Add the following command below `"$(dirname "$0")/iotdb-common.sh" `in the `distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/sbin/start-datanode.sh` file:
-```
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5210"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DCONFIGNODE_CONF=./conf_cloud"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dlogback.configurationFile=./conf_cloud/logback-datanode.xml"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DTSFILE=./conf_cloud"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -Dname=iotdb/.DataNodeEdge"
-IOTDB_JVM_OPTS="$IOTDB_JVM_OPTS -DIOTDB_CONF=./conf_cloud"
-```
+Start the Cloud version:
+
 Run ConfigNode-Cloud:
 ```
-sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/start-confignode.sh
+sudo distribution/target/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/sbin/start-confignode.sh -c [your config]
 ```
+
 Run DataNode-Cloud:
 ```
-sudo distribution/target/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/apache-iotdb-1.3.0-SNAPSHOT-datanode-bin/sbin/start-datanode.sh
+sudo distribution/target/apache-iotdb-1.3.4-SNAPSHOT-datanode-bin/apache-iotdb-1.3.4-SNAPSHOT-server-bin/sbin/start-datanode.sh -c [your config]
 ```
-When you need to use it on two devices, you need to modify `localhost` in `iotdb-core/datanode/src/main/java/zyh/service/LoadDetection.java`, `iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/AbstractSeriesAggregationScanOperator.java`, and `iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/execution/operator/source/SeriesScanOperator.java` to the corresponding IP address.
 
 ### Use CED-DB
 
-#### Use Cli
+#### Use the CLI
 
-CED-DB provides different ways to interact with the server, here we will introduce the basic steps to insert and query data using the Cli tool.
+CED-DB provides different ways to interact with the server. Here we introduce the basic steps for inserting and querying data using the CLI tool.
 
-After installing CED-DB, there is a default user `root`, and its default password is also `root`. Users can use this
-default user to log in to Cli and use CED-DB. The startup script of Cli is the start-cli script in the sbin folder.
-When executing the script, users should specify the IP, port, USER_NAME and password. The default parameters are `-h 127.0.0.1 -p 6667 -u root -pw root`.
+After installing CED-DB, there is a default user `root` whose default password is also `root`. Users can log in to the CLI and use CED-DB with this default account. The startup script for the CLI is the `start-cli` script in the `sbin` folder.
+When executing the script, the user should specify the IP, port, `USER_NAME`, and password. The default parameters are `-h 127.0.0.1 -p 6667 -u root -pw root`.
 
-Here is the command for starting the Cli:
+The following is the command to start Cli-Edge:
 
 ```
-> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/apache-iotdb-1.3.0-SNAPSHOT-cli-bin/sbin/start-cli.sh -p 6667
+> distribution/target/apache-iotdb-1.3.4-SNAPSHOT-cli-bin/apache-iotdb-1.3.4-SNAPSHOT-cli-bin/sbin/start-cli.sh
 ```
 
-The command line cli is interactive, so you should see the welcome logo and statements if everything is ready:
+The following is the command to start Cli-Cloud:
+
+```
+> distribution/target/apache-iotdb-1.3.4-SNAPSHOT-cli-bin/apache-iotdb-1.3.4-SNAPSHOT-cli-bin/sbin/start-cli.sh
+```
+
+The command-line client is interactive, so if everything is ready, you should see the welcome banner and message:
 
 ```
   ______  ________ ______      ______   ______      
@@ -249,43 +323,47 @@ The command line cli is interactive, so you should see the welcome logo and stat
 CED-DB> login successfully
 CED-DB>
 ```
-#### Basic commands
 
-Now, let us introduce the way of creating timeseries, inserting data and querying data.
+#### Basic Commands
 
-The commands of CED-DB are the same as those of IoTDB. The data in CED-DB is organized as timeseries. Each timeseries includes multiple data-time pairs, and is owned by a database. Before defining a timeseries, we should define a database using CREATE DATABASE first, and here is an example:
+Now let us introduce how to create timeseries, insert data, and query data.
+
+CED-DB uses the same commands as IoTDB. Data in CED-DB is organized as timeseries. Each timeseries contains multiple `data-time` pairs and belongs to a database.
+Before defining a timeseries, we should first create a database using `CREATE DATABASE`. Here is an example:
 
 ```
 CED-DB> CREATE DATABASE root.ln
 ```
 
-We can also use SHOW DATABASES to check the database being created:
+We can also use `SHOW DATABASES` to check the created databases:
 
 ```
 CED-DB> SHOW DATABASES
-+-------------+
-|     Database|
-+-------------+
-|      root.ln|
-+-------------+
++--------+
+|Database|
++--------+
+| root.ln|
++--------+
 Total line number = 1
 ```
 
-After the database is set, we can use CREATE TIMESERIES to create a new timeseries. When creating a timeseries, we should define its data type and the encoding scheme. Here we create two timeseries:
+After setting the database, we can use `CREATE TIMESERIES` to create a new timeseries.
+When creating a timeseries, we should define its data type and encoding scheme. Here we create two timeseries:
 
 ```
 CED-DB> CREATE TIMESERIES root.ln.wf01.wt01.status WITH DATATYPE=BOOLEAN, ENCODING=PLAIN
 CED-DB> CREATE TIMESERIES root.ln.wf01.wt01.temperature WITH DATATYPE=FLOAT, ENCODING=RLE
 ```
 
-In order to query the specific timeseries, we can use SHOW TIMESERIES <Path>. <Path> represent the location of the timeseries. The default value is "null", which queries all the timeseries in the system(the same as using "SHOW TIMESERIES root"). Here are some examples:
+To query a specific timeseries, we can use `SHOW TIMESERIES <Path>`. `<Path>` indicates the path of the queried timeseries. The default value is `null`, which means querying all timeseries in the system (the same as `SHOW TIMESERIES root`).
+Some examples are shown below:
 
-1. Querying all timeseries in the system:
+1. Query all timeseries in the system:
 
 ```
 CED-DB> SHOW TIMESERIES
 +-----------------------------+-----+-------------+--------+--------+-----------+----+----------+
-|                   Timeseries|Alias|Database|DataType|Encoding|Compression|Tags|Attributes|
+|                   timeseries|alias|database|dataType|encoding|compression|tags|attributes|
 +-----------------------------+-----+-------------+--------+--------+-----------+----+----------+
 |root.ln.wf01.wt01.temperature| null|      root.ln|   FLOAT|     RLE|     SNAPPY|null|      null|
 |     root.ln.wf01.wt01.status| null|      root.ln| BOOLEAN|   PLAIN|     SNAPPY|null|      null|
@@ -293,7 +371,7 @@ CED-DB> SHOW TIMESERIES
 Total line number = 2
 ```
 
-2. Querying a specific timeseries(root.ln.wf01.wt01.status):
+2. Query a specified timeseries (`root.ln.wf01.wt01.status`):
 
 ```
 CED-DB> SHOW TIMESERIES root.ln.wf01.wt01.status
@@ -305,49 +383,28 @@ CED-DB> SHOW TIMESERIES root.ln.wf01.wt01.status
 Total line number = 1
 ```
 
-Insert timeseries data is a basic operation of CED-DB, you can use ‘INSERT’ command to finish this. Before insertion, you should assign the timestamp and the suffix path name:
+Inserting timeseries data is a basic operation in CED-DB. You can use the `INSERT` command to do this.
+Before insertion, you should specify the timestamp and the suffix path name:
 
 ```
 CED-DB> INSERT INTO root.ln.wf01.wt01(timestamp,status) values(100,true);
 CED-DB> INSERT INTO root.ln.wf01.wt01(timestamp,status,temperature) values(200,false,20.71)
 ```
 
-The data that you have just inserted will display as follows:
+The data you just inserted will be displayed as follows:
 
 ```
 CED-DB> SELECT status FROM root.ln.wf01.wt01
-+------------------------+------------------------+
-|                    Time|root.ln.wf01.wt01.status|
-+------------------------+------------------------+
-|1970-01-01T00:00:00.100Z|                    true|
-|1970-01-01T00:00:00.200Z|                   false|
-+------------------------+------------------------+
++-----------------------------+------------------------+
+|                         Time|root.ln.wf01.wt01.status|
++-----------------------------+------------------------+
+|1970-01-01T08:00:00.100+08:00|                    true|
+|1970-01-01T08:00:00.200+08:00|                   false|
++-----------------------------+------------------------+
 Total line number = 2
 ```
 
-You can also query several timeseries data using one SQL statement:
-
-```
-CED-DB> SELECT * FROM root.ln.wf01.wt01
-+------------------------+-----------------------------+------------------------+
-|                    Time|root.ln.wf01.wt01.temperature|root.ln.wf01.wt01.status|
-+------------------------+-----------------------------+------------------------+
-|1970-01-01T00:00:00.100Z|                         null|                    true|
-|1970-01-01T00:00:00.200Z|                        20.71|                   false|
-+------------------------+-----------------------------+------------------------+
-Total line number = 2
-```
-
-To change the time zone in Cli, you can use the following SQL:
-
-```
-CED-DB> SET time_zone=+08:00
-Time zone has set to +08:00
-CED-DB> SHOW time_zone
-Current time zone: Asia/Shanghai
-```
-
-Add then the query result will show using the new time zone.
+You can also query multiple timeseries with a single SQL statement:
 
 ```
 CED-DB> SELECT * FROM root.ln.wf01.wt01
@@ -360,7 +417,29 @@ CED-DB> SELECT * FROM root.ln.wf01.wt01
 Total line number = 2
 ```
 
-The commands to exit the Cli are:
+If you need to modify the time zone in the CLI, you can use the following statements:
+
+```
+CED-DB> SET time_zone=+00:00
+Time zone has set to +00:00
+CED-DB> SHOW time_zone
+Current time zone: Z
+```
+
+After that, query results will be displayed in the updated time zone:
+
+```
+CED-DB> SELECT * FROM root.ln.wf01.wt01
++------------------------+-----------------------------+------------------------+
+|                    Time|root.ln.wf01.wt01.temperature|root.ln.wf01.wt01.status|
++------------------------+-----------------------------+------------------------+
+|1970-01-01T00:00:00.100Z|                         null|                    true|
+|1970-01-01T00:00:00.200Z|                        20.71|                   false|
++------------------------+-----------------------------+------------------------+
+Total line number = 2
+```
+
+You can exit using the following commands:
 
 ```
 CED-DB> quit
@@ -368,26 +447,26 @@ or
 CED-DB> exit
 ```
 
-Since the commands of CED-DB and IoTDB are the same, for more information about the commands supported by IoTDB SQL, see the [IoTDB User Guide](https://iotdb.apache.org/zh/UserGuide/Master/QuickStart/QuickStart.html).
+Since CED-DB uses the same commands as IoTDB, for more information about IoTDB SQL-supported commands, please refer to the [IoTDB User Guide](https://iotdb.apache.org/zh/UserGuide/Master/QuickStart/QuickStart.html).
 
 ### Stop CED-DB
 
-The server can be stopped with "ctrl-C" or the following script:
+The server can be stopped by pressing `ctrl-C` or by running the following script:
+
 ```
-> distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/stop-standalone.sh
+> distribution/target/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/sbin/stop-standalone.sh
 ```
 
 # Contact Us
+
 ### QQ Group
 
-* MDC CED-DB User Group：973755143
+* MDC CED-DB discussion group: 973755143
 
-### Wechat Group
+### WeChat Group
 
-* Add friend: `zcy09120016`, and then we'll invite you to the group.
+* Add `zcy09120016` as a friend, and we will invite you to the group
 
-# Statement
-
-* This project was primarily carried out by the Massive Data Computing Lab at Harbin Institute of Technology, with the IoTDB team participating as a collaborator in part of the work.
-* This project is a research outcome of the Cloud-Edge-End Collaborative Database Management System project.
-* The related outcomes are intended solely for academic research purposes and may not be reproduced or used for commercial purposes without permission.
+# Disclaimer
+* This project is primarily developed by the Massive Data Computing Research Center of Harbin Institute of Technology, with the IoTDB team participating as a collaborator in part of the project work.
+* This project is one of the research outcomes of the “Cloud-Edge-Device Collaborative Database Management System” project. The related results are for academic research purposes only and may not be reproduced or used for commercial purposes without authorization.

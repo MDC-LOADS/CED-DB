@@ -23,6 +23,7 @@ import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.queryengine.execution.MemoryEstimationHelper;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryConfig;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryRpcRetryUtils;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.ScanInfoConverter;
@@ -304,16 +305,23 @@ public class IdentitySinkOperator implements Operator {
 
   public void callColQueryClose(Map<String, ScanInfo> scanInfoMap) throws TException{
       ColQueryConfig cfg = ColQueryConfig.getInstance();
-      try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
-          TProtocol protocol = new TBinaryProtocol(transport);
-          C2EColService.Client client = new C2EColService.Client(protocol);
-          transport.open();
-          // 调用服务方法
-          String colQueryId = ColQuerySessions
-              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
-              .getQueryId();
-          client.ColQueryClose(colQueryId, scanInfoMap);
+      try {
+          ColQueryRpcRetryUtils.execute(
+                  "ColQueryClose",
+                  () -> {
+                      try (TTransport transport =
+                                   new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
+                          TProtocol protocol = new TBinaryProtocol(transport);
+                          C2EColService.Client client = new C2EColService.Client(protocol);
+                          transport.open();
+                          // 调用服务方法
+                          String colQueryId = ColQuerySessions
+                              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
+                              .getQueryId();
+                          client.ColQueryClose(colQueryId, scanInfoMap);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
+                      }
+                  });
       } catch (TException x) {
           x.printStackTrace();
       }
@@ -321,16 +329,23 @@ public class IdentitySinkOperator implements Operator {
 
   public void callColQueryCloseWithLeftOuterJoin(Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft,TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException{
       ColQueryConfig cfg = ColQueryConfig.getInstance();
-      try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
-          TProtocol protocol = new TBinaryProtocol(transport);
-          C2EColService.Client client = new C2EColService.Client(protocol);
-          transport.open();
-          // 调用服务方法
-          String colQueryId = ColQuerySessions
-              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
-              .getQueryId();
-          client.ColQueryCloseWithLeftOuterJoin(colQueryId, scanInfoMap,timeColumnLeft,valueColumnsLeft,timeColumnRight,valueColumnsRight);
+      try {
+          ColQueryRpcRetryUtils.execute(
+                  "ColQueryCloseWithLeftOuterJoin",
+                  () -> {
+                      try (TTransport transport =
+                                   new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
+                          TProtocol protocol = new TBinaryProtocol(transport);
+                          C2EColService.Client client = new C2EColService.Client(protocol);
+                          transport.open();
+                          // 调用服务方法
+                          String colQueryId = ColQuerySessions
+                              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
+                              .getQueryId();
+                          client.ColQueryCloseWithLeftOuterJoin(colQueryId, scanInfoMap,timeColumnLeft,valueColumnsLeft,timeColumnRight,valueColumnsRight);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
+                      }
+                  });
       } catch (TException x) {
           x.printStackTrace();
       }
@@ -338,16 +353,23 @@ public class IdentitySinkOperator implements Operator {
 
   public void callColQueryCloseWithSingleScan(String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException{
       ColQueryConfig cfg = ColQueryConfig.getInstance();
-      try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
-          TProtocol protocol = new TBinaryProtocol(transport);
-          C2EColService.Client client = new C2EColService.Client(protocol);
-          transport.open();
-          // 调用服务方法
-          String colQueryId = ColQuerySessions
-              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
-              .getQueryId();
-          client.ColQueryCloseWithSingleScan(colQueryId, planNodeId,offset,seriesPath,isCloudEqual);
+      try {
+          ColQueryRpcRetryUtils.execute(
+                  "ColQueryCloseWithSingleScan",
+                  () -> {
+                      try (TTransport transport =
+                                   new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
+                          TProtocol protocol = new TBinaryProtocol(transport);
+                          C2EColService.Client client = new C2EColService.Client(protocol);
+                          transport.open();
+                          // 调用服务方法
+                          String colQueryId = ColQuerySessions
+                              .getByCloudQueryId(operatorContext.getInstanceContext().getId().getQueryId().getId())
+                              .getQueryId();
+                          client.ColQueryCloseWithSingleScan(colQueryId, planNodeId,offset,seriesPath,isCloudEqual);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
+                      }
+                  });
       } catch (TException x) {
           x.printStackTrace();
       }

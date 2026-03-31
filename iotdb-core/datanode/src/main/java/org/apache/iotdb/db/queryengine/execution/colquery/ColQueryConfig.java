@@ -24,6 +24,8 @@ public final class ColQueryConfig {
     private int remoteRpcPort = 9090;  // edge side
     private int localMppPort = 10744;
     private int remoteMppPort = 10740;
+    private boolean rpcRetryEnabled = false;
+    private int rpcRetryIntervalMs = 1000;
 
     private ColQueryConfig() { load(); }
 
@@ -70,6 +72,11 @@ public final class ColQueryConfig {
         this.remoteRpcPort = parseInt(props.getProperty("colquery.remote.rpc.port"), remoteRpcPort);
         this.localMppPort = parseInt(props.getProperty("colquery.local.mpp.port"), localMppPort);
         this.remoteMppPort = parseInt(props.getProperty("colquery.remote.mpp.port"), remoteMppPort);
+        this.rpcRetryEnabled =
+                Boolean.parseBoolean(
+                        props.getProperty("colquery.rpc.retry.enabled", Boolean.toString(rpcRetryEnabled)));
+        this.rpcRetryIntervalMs =
+                parseInt(props.getProperty("colquery.rpc.retry.interval.ms"), rpcRetryIntervalMs);
     }
 
     private static int parseInt(String s, int def) {
@@ -84,6 +91,7 @@ public final class ColQueryConfig {
     public int getRemoteRpcPort() { return remoteRpcPort; }
     public int getLocalMppPort() { return localMppPort; }
     public int getRemoteMppPort() { return remoteMppPort; }
+    public boolean isRpcRetryEnabled() { return rpcRetryEnabled; }
+    public int getRpcRetryIntervalMs() { return rpcRetryIntervalMs; }
 }
-
 

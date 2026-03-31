@@ -406,7 +406,6 @@ public class LeftOuterTimeJoinOperator implements ProcessOperator {
             TsBlock cacheBlock = extractDataFromThreshold(leftTsBlock, leftIndex, thresholdTime);
 
             if (cacheBlock != null && cacheBlock.getPositionCount() > 0) {
-                System.out.println("设置cache啦");
                 stateManager.setLeftOuterJoinCacheLeft(cacheBlock);
                 stateManager.setLeftOuterJoinCacheRight(null);
                 stateManager.setHasLeftOuterJoin(true);

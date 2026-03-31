@@ -35,6 +35,7 @@ import org.apache.iotdb.db.queryengine.common.header.DatasetHeader;
 import org.apache.iotdb.db.queryengine.execution.QueryState;
 import org.apache.iotdb.db.queryengine.execution.QueryStateMachine;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryState;
+import org.apache.iotdb.db.queryengine.execution.colquery.ColQueryRpcRetryUtils;
 import org.apache.iotdb.db.queryengine.execution.colquery.QueryStateManager;
 import org.apache.iotdb.db.queryengine.execution.colquery.ColQuerySessions;
 import org.apache.iotdb.db.queryengine.execution.colquery.colservice.C2EColService;
@@ -800,24 +801,25 @@ public class QueryExecution implements IQueryExecution {
   }
 
   public void callAckMessage(int cloudFragmentId){
-      TTransport transport = null;
     ColQueryConfig cfg = ColQueryConfig.getInstance();
-      try  {
-          transport =  new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()));
-          TProtocol protocol = new TBinaryProtocol(transport);
-          C2EColService.Client client = new C2EColService.Client(protocol);
-          transport.open();
-          // 调用服务方法
-          QueryStateManager session = ColQuerySessions.getByCloudQueryId(context.getQueryId().getId());
-          String colQueryId = session != null && session.getQueryId()!=null ? session.getQueryId() : "";
-          client.ACKMessage(colQueryId, cloudFragmentId);
+    try {
+      ColQueryRpcRetryUtils.execute(
+          "ACKMessage",
+          () -> {
+            try (TTransport transport =
+                new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
+              TProtocol protocol = new TBinaryProtocol(transport);
+              C2EColService.Client client = new C2EColService.Client(protocol);
+              transport.open();
+              // 调用服务方法
+              QueryStateManager session = ColQuerySessions.getByCloudQueryId(context.getQueryId().getId());
+              String colQueryId = session != null && session.getQueryId() != null ? session.getQueryId() : "";
+              client.ACKMessage(colQueryId, cloudFragmentId);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
-      } catch (TException x) {
-          x.printStackTrace();
-      }finally {
-          if(null!=transport){
-              transport.close();
-          }
-      }
+            }
+          });
+    } catch (TException x) {
+      x.printStackTrace();
+    }
   }
 }

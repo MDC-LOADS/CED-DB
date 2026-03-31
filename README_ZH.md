@@ -13,7 +13,7 @@ CED-DB(Cloud-Edge-Device DataBase)是一款云边端协同时序数据库管理�
 # 复现实验说明
 
 
-本文档提供了复现本项目实验的完整步骤说明。
+本文档提供了复现本项目实验的完整步骤说明，你也可以通过[OneDrive](https://1drv.ms/f/c/3ba3d79950bd0ad5/IgAjBcLnAGmeSaRlG3nuCm_qAeZbgMB621oM2ZefQOuxqYs?e=9hjxsB)获取我们的数据和配置文件。
 
 ---
 ## 1. 使用 IoT-Benchmark 生成数据

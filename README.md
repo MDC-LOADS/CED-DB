@@ -10,7 +10,7 @@ CED-DB (Cloud-Edge-Device DataBase) is a cloud-edge-device collaborative time-se
 
 # Reproducing the Experiments
 
-This document provides a complete step-by-step guide for reproducing the experiments in this project.
+This document provides a complete step-by-step guide for reproducing the experiments in this project. You can also access our data and configuration files via [OneDrive](https://1drv.ms/f/c/3ba3d79950bd0ad5/IgAjBcLnAGmeSaRlG3nuCm_qAeZbgMB621oM2ZefQOuxqYs?e=9hjxsB).
 
 ---
 ## 1. Generate Data Using IoT-Benchmark

@@ -23,7 +23,10 @@ if [ -z "${IOTDB_HOME}" ]; then
   echo $IOTDB_HOME
 fi
 
-IOTDB_CONF=${IOTDB_HOME}/conf
+# Respect pre-set IOTDB_CONF; fallback to ${IOTDB_HOME}/conf
+if [ -z "${IOTDB_CONF}" ]; then
+  IOTDB_CONF=${IOTDB_HOME}/conf
+fi
 # IOTDB_LOGS=${IOTDB_HOME}/logs
 
 if [ -n "$JAVA_HOME" ]; then

@@ -26,6 +26,8 @@ public final class ColQueryConfig {
   private int remoteMppPort = 10744;
   private boolean iscolQuery = false;
   private int colQueryWait=0;
+  private boolean rpcRetryEnabled = false;
+  private int rpcRetryIntervalMs = 1000;
 
   private ColQueryConfig() { load(); }
 
@@ -74,6 +76,11 @@ public final class ColQueryConfig {
     this.remoteMppPort = parseInt(props.getProperty("colquery.remote.mpp.port"), remoteMppPort);
     this.iscolQuery = Boolean.parseBoolean(props.getProperty("colquery.iscol.query"));
     this.colQueryWait = parseInt(props.getProperty("colquery.col.query.wait"), colQueryWait);
+    this.rpcRetryEnabled =
+        Boolean.parseBoolean(
+            props.getProperty("colquery.rpc.retry.enabled", Boolean.toString(rpcRetryEnabled)));
+    this.rpcRetryIntervalMs =
+        parseInt(props.getProperty("colquery.rpc.retry.interval.ms"), rpcRetryIntervalMs);
   }
 
   private static int parseInt(String s, int def) {
@@ -90,8 +97,9 @@ public final class ColQueryConfig {
   public int getRemoteMppPort() { return remoteMppPort; }
   public boolean isColQuery() { return iscolQuery; }
   public int getColQueryWait() { return colQueryWait; }
+  public boolean isRpcRetryEnabled() { return rpcRetryEnabled; }
+  public int getRpcRetryIntervalMs() { return rpcRetryIntervalMs; }
   public void addColQueryWait() {
     this.colQueryWait = this.colQueryWait + 1;
   }
 }
-

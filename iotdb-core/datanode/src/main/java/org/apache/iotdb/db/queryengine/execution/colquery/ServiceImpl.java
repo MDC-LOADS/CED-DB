@@ -281,39 +281,60 @@ public class ServiceImpl implements C2EColService.Iface{
 
     public void callAnsMessageWithLeftOuterJoin(String colQueryId, int edgeFragmentId, Map<String, ScanInfo> scanInfoMap, TimeColumn timeColumnLeft, List<Column> valueColumnsLeft,TimeColumn timeColumnRight, List<Column> valueColumnsRight) throws TException {
         ColQueryConfig cfg = ColQueryConfig.getInstance();
-        try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
-            TProtocol protocol = new TBinaryProtocol(transport);
-            E2CColService.Client client = new E2CColService.Client(protocol);
-            transport.open();
-            // 调用服务方法
-            client.AnsMessageWithLeftOuterJoin(colQueryId, edgeFragmentId, scanInfoMap, timeColumnLeft, valueColumnsLeft, timeColumnRight, valueColumnsRight);
+        try {
+            ColQueryRpcRetryUtils.execute(
+                    "AnsMessageWithLeftOuterJoin",
+                    () -> {
+                        try (TTransport transport =
+                                     new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
+                            TProtocol protocol = new TBinaryProtocol(transport);
+                            E2CColService.Client client = new E2CColService.Client(protocol);
+                            transport.open();
+                            // 调用服务方法
+                            client.AnsMessageWithLeftOuterJoin(colQueryId, edgeFragmentId, scanInfoMap, timeColumnLeft, valueColumnsLeft, timeColumnRight, valueColumnsRight);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
+                        }
+                    });
         } catch (TException x) {
             x.printStackTrace();
         }
     }
     public void callAnsMessage(String colQueryId, int edgeFragmentId, Map<String, ScanInfo> scanInfoMap) throws TException {
         ColQueryConfig cfg = ColQueryConfig.getInstance();
-        try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
-            TProtocol protocol = new TBinaryProtocol(transport);
-            E2CColService.Client client = new E2CColService.Client(protocol);
-            transport.open();
-            // 调用服务方法
-            client.AnsMessage(colQueryId, edgeFragmentId, scanInfoMap);
+        try {
+            ColQueryRpcRetryUtils.execute(
+                    "AnsMessage",
+                    () -> {
+                        try (TTransport transport =
+                                     new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
+                            TProtocol protocol = new TBinaryProtocol(transport);
+                            E2CColService.Client client = new E2CColService.Client(protocol);
+                            transport.open();
+                            // 调用服务方法
+                            client.AnsMessage(colQueryId, edgeFragmentId, scanInfoMap);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
+                        }
+                    });
         } catch (TException x) {
             x.printStackTrace();
         }
     }
     public void callAnsMessageWithSingleScan(String colQueryId, int edgeFragmentId, String planNodeId, long offset, String seriesPath, boolean isCloudEqual) throws TException {
         ColQueryConfig cfg = ColQueryConfig.getInstance();
-        try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
-            TProtocol protocol = new TBinaryProtocol(transport);
-            E2CColService.Client client = new E2CColService.Client(protocol);
-            transport.open();
-            // 调用服务方法
-            client.AnsMessageWithSingleScan(colQueryId, edgeFragmentId, planNodeId, offset, seriesPath, isCloudEqual);
+        try {
+            ColQueryRpcRetryUtils.execute(
+                    "AnsMessageWithSingleScan",
+                    () -> {
+                        try (TTransport transport =
+                                     new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
+                            TProtocol protocol = new TBinaryProtocol(transport);
+                            E2CColService.Client client = new E2CColService.Client(protocol);
+                            transport.open();
+                            // 调用服务方法
+                            client.AnsMessageWithSingleScan(colQueryId, edgeFragmentId, planNodeId, offset, seriesPath, isCloudEqual);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
+                        }
+                    });
         } catch (TException x) {
             x.printStackTrace();
         }

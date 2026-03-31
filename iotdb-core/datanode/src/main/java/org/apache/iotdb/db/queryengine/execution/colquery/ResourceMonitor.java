@@ -43,13 +43,20 @@ public class ResourceMonitor {
 
 //        QueryStateManager queryStateManager = QueryStateManager.getInstance();
         ColQueryConfig cfg = ColQueryConfig.getInstance();
-        try (TTransport transport = new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
-            TProtocol protocol = new TBinaryProtocol(transport);
-            E2CColService.Client client = new E2CColService.Client(protocol);
-            transport.open();
-            // 调用服务方法，使用协同通道 id（edgeQueryId-dataNodeId）
-            client.ColQueryStart(sql, colQueryId);
+        try {
+            ColQueryRpcRetryUtils.execute(
+                    "ColQueryStart",
+                    () -> {
+                        try (TTransport transport =
+                                     new TFramedTransport(new TSocket(cfg.getRemoteIp(), cfg.getRemoteRpcPort()))) {
+                            TProtocol protocol = new TBinaryProtocol(transport);
+                            E2CColService.Client client = new E2CColService.Client(protocol);
+                            transport.open();
+                            // 调用服务方法，使用协同通道 id（edgeQueryId-dataNodeId）
+                            client.ColQueryStart(sql, colQueryId);
 //            System.out.println("ansData:"+SourceId+" sent successfully.");
+                        }
+                    });
         } catch (TException x) {
             x.printStackTrace();
         }

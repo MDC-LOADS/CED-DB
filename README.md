@@ -457,16 +457,3 @@ The server can be stopped by pressing `ctrl-C` or by running the following scrip
 > distribution/target/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/apache-iotdb-1.3.4-SNAPSHOT-confignode-bin/sbin/stop-standalone.sh
 ```
 
-# Contact Us
-
-### QQ Group
-
-* MDC CED-DB discussion group: 973755143
-
-### WeChat Group
-
-* Add `zcy09120016` as a friend, and we will invite you to the group
-
-# Disclaimer
-* This project is primarily developed by the Massive Data Computing Research Center of Harbin Institute of Technology, with the IoTDB team participating as a collaborator in part of the project work.
-* This project is one of the research outcomes of the “Cloud-Edge-Device Collaborative Database Management System” project. The related results are for academic research purposes only and may not be reproduced or used for commercial purposes without authorization.

@@ -425,16 +425,4 @@ server 可以使用 "ctrl-C" 或者执行下面的脚本:
 ```
 > distribution/target/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/apache-iotdb-1.3.0-SNAPSHOT-confignode-bin/sbin/stop-standalone.sh
 ```
-# 联系我们
 
-### QQ群
-
-* MDC CED-DB 交流群：973755143
-
-### Wechat Group
-
-* 添加好友 `zcy09120016` ，我们会邀请您进群
-
-# 声明
-* 本项目由哈尔滨工业大学海量数据计算研究中心主要负责完成，IoTDB团队作为合作方参与项目的部分工作。
-* 本项目为《云边端协同数据库管理系统》项目的一个研究成果，相关成果仅用于学术研究目的，未经授权请勿转载或用于商业用途。
